@@ -418,37 +418,68 @@ window.guardarInforme = function(){
   if(!d.conductor){ toast('Ingresa el nombre del conductor'); return; }
   if(!d.producto){ toast('Ingresa el producto'); return; }
 
-  // Guardar fotos en localStorage con clave del contenedor+fecha
-  const fotoKey = 'fotos_' + d.contenedor + '_' + d.fecha;
-  if(d.fotos && d.fotos.length > 0){
-    try{ localStorage.setItem(fotoKey, JSON.stringify(d.fotos)); }catch(e){}
-  }
+  const fotosCapturadas = d.fotos ? d.fotos.filter(function(f){ return f !== null; }) : [];
 
-  // Guardar datos en Firebase sin fotos base64
+  // Guardar datos principales en Firebase (sin fotos)
   const paraFirebase = {...d};
-  paraFirebase.fotosCount = d.fotos ? d.fotos.length : 0;
-  paraFirebase.fotoKey = fotoKey;
+  paraFirebase.fotosCount = fotosCapturadas.length;
   delete paraFirebase.fotos;
 
-  push(ref(db,'contenedor_informes'), paraFirebase).then((newRef)=>{
-    toast('Informe ' + d.contenedor + ' guardado ✓');
-    // Abrir vista previa con fotos incluidas
-    d.fbKey = newRef.key;
-    abrirPreview(d);
-    fotos = new Array(10).fill(null);
-    setTimeout(()=>renderNuevo(), 400);
-  }).catch(err=>{ toast('Error: ' + err.message); });
+  push(ref(db,'contenedor_informes'), paraFirebase).then(function(newRef){
+    const fbKey = newRef.key;
+
+    // Guardar fotos en nodo separado: contenedor_fotos/{fbKey}
+    const guardarFotos = fotosCapturadas.length > 0
+      ? set(ref(db,'contenedor_fotos/' + fbKey), fotosCapturadas)
+      : Promise.resolve();
+
+    guardarFotos.then(function(){
+      toast('Informe ' + d.contenedor + ' guardado ✓');
+      d.fbKey = fbKey;
+      d.fotos = fotosCapturadas;
+      abrirPreview(d);
+      fotos = new Array(10).fill(null);
+      setTimeout(function(){ renderNuevo(); }, 400);
+    }).catch(function(err){
+      // Si falla guardar fotos, igual mostrar preview con fotos en memoria
+      toast('Informe guardado (fotos solo en esta sesión)');
+      d.fbKey = fbKey;
+      d.fotos = fotosCapturadas;
+      abrirPreview(d);
+      fotos = new Array(10).fill(null);
+      setTimeout(function(){ renderNuevo(); }, 400);
+    });
+  }).catch(function(err){ toast('Error: ' + err.message); });
 };
 
 // ─── ABRIR PREVIEW (unificado para nuevo e histórico) ────────
 function abrirPreview(d){
-  // Recuperar fotos desde localStorage si no vienen en d
-  if((!d.fotos || d.fotos.length === 0) && d.fotoKey){
-    try{
-      const saved = localStorage.getItem(d.fotoKey);
-      if(saved) d.fotos = JSON.parse(saved);
-    }catch(e){}
+  if(!d.fotos) d.fotos = [];
+
+  // Si ya tiene fotos en memoria, mostrar directamente
+  if(d.fotos.length > 0){
+    _renderPreview(d);
+    return;
   }
+
+  // Si tiene fbKey, intentar cargar fotos desde Firebase
+  if(d.fbKey){
+    get(ref(db,'contenedor_fotos/' + d.fbKey)).then(function(snap){
+      if(snap.exists()){
+        const val = snap.val();
+        d.fotos = Array.isArray(val) ? val : Object.values(val);
+      }
+      _renderPreview(d);
+    }).catch(function(){
+      _renderPreview(d);
+    });
+    return;
+  }
+
+  _renderPreview(d);
+}
+
+function _renderPreview(d){
   if(!d.fotos) d.fotos = [];
 
   const tiqueteVacio = !d.tiquete || d.tiquete.toString().trim() === '';
@@ -581,7 +612,7 @@ function abrirPreview(d){
 
   document.getElementById('preview-content').innerHTML = html;
   openModal('modal-preview');
-}
+} // fin _renderPreview
 
 // ─── GUARDAR TIQUETE POST-GUARDADO ───────────────────────
 window.guardarTiquete = function(fbKey){
@@ -613,8 +644,8 @@ window.previsualizarInforme = function(data){
 window.verInforme = function(key){
   const h = informes[key];
   if(!h) return;
-  const d = Object.assign({}, h, {fbKey: key});
-  abrirPreview(d);
+  const d = Object.assign({}, h, {fbKey: key, fotos: []});
+  abrirPreview(d); // carga fotos desde Firebase automáticamente
 };
 
 // ─── IMPRIMIR PDF ─────────────────────────────────────────
@@ -702,12 +733,15 @@ function renderInformes(filter){
 }
 
 // ─── ELIMINAR INFORME ─────────────────────────────────────
-window.eliminarInforme = function(key, contenedor, fotoKey){
+window.eliminarInforme = function(key, contenedor){
   if(!confirm('¿Eliminar el informe del contenedor ' + contenedor + '? Esta acción no se puede deshacer.')) return;
-  remove(ref(db,'contenedor_informes/'+key)).then(()=>{
-    if(fotoKey) try{ localStorage.removeItem(fotoKey); }catch(e){}
+  // Borrar datos e imágenes en Firebase
+  Promise.all([
+    remove(ref(db,'contenedor_informes/'+key)),
+    remove(ref(db,'contenedor_fotos/'+key))
+  ]).then(function(){
     toast('Informe eliminado');
-  }).catch(err=>toast('Error: '+err.message));
+  }).catch(function(err){ toast('Error: '+err.message); });
 };
 
 // ─── ELIMINAR TODOS ───────────────────────────────────────
@@ -715,12 +749,12 @@ window.eliminarTodo = function(){
   const total = Object.keys(informes).length;
   if(!total){ toast('No hay informes para borrar'); return; }
   if(!confirm('¿Borrar TODOS los ' + total + ' informes? Esta acción no se puede deshacer.')) return;
-  // Borrar fotos del localStorage
-  Object.values(informes).forEach(h=>{ if(h.fotoKey) try{ localStorage.removeItem(h.fotoKey); }catch(e){} });
-  // Borrar en Firebase
-  set(ref(db,'contenedor_informes'), null).then(()=>{
+  Promise.all([
+    set(ref(db,'contenedor_informes'), null),
+    set(ref(db,'contenedor_fotos'), null)
+  ]).then(function(){
     toast('Todos los informes eliminados');
-  }).catch(err=>toast('Error: '+err.message));
+  }).catch(function(err){ toast('Error: '+err.message); });
 };
 
 // ─── INIT ─────────────────────────────────────────────────
