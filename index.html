@@ -107,12 +107,16 @@ html,body{height:100%;background:var(--bg2);font-family:-apple-system,BlinkMacSy
 
 /* PRINT */
 @media print{
-  @page{size:letter portrait;margin:15mm 12mm}
+  @page{size:letter portrait;margin:12mm 10mm}
   body>*{display:none!important}
   #print-area{display:block!important;background:#fff;font-size:10px;font-family:Arial,sans-serif;color:#1a1a1a;width:100%}
   #print-area table{width:100%;border-collapse:collapse}
-  #print-area td{padding:4px 6px;font-size:10px}
-  #print-area img{max-width:100%}
+  #print-area td{padding:3px 5px;font-size:9.5px}
+  #print-area .foto-section{page-break-before:auto;break-before:auto}
+  #print-area .foto-grid-print{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-top:6px}
+  #print-area .foto-grid-print div{aspect-ratio:1;overflow:hidden;border:1px solid #ddd}
+  #print-area .foto-grid-print img{width:100%;height:100%;object-fit:cover;display:block}
+  #tiquete-edit-banner{display:none!important}
 }
 #print-area{display:none}
 </style>
@@ -379,10 +383,13 @@ window.guardarInforme = function(){
   paraFirebase.fotosCount = d.fotos.length;
   delete paraFirebase.fotos;
 
-  push(ref(db,'contenedor_informes'), paraFirebase).then(()=>{
+  push(ref(db,'contenedor_informes'), paraFirebase).then((newRef)=>{
     toast(`Informe ${d.contenedor} guardado ✓`);
+    d.fbKey = newRef.key;
     previsualizarInforme(d);
     openModal('modal-preview');
+    fotos = new Array(10).fill(null);
+    setTimeout(()=>renderNuevo(), 300);
   }).catch(err=>{ toast('Error: '+err.message); console.error(err); });
 };
 
@@ -466,7 +473,23 @@ window.previsualizarInforme = function(data){
 window.printInforme = function(){
   const src = $('preview-content');
   if(!src || !src.innerHTML.trim()) return;
-  $('print-area').innerHTML = src.innerHTML;
+
+  // Verificar tiquete pendiente
+  const input = document.getElementById('tiquete-preview-input');
+  if(input && input.value.trim()){
+    // Hay un tiquete escrito pero no aplicado — aplicarlo primero
+    aplicarTiquetePreview('');
+  }
+
+  // Si aún queda pendiente, advertir pero permitir continuar
+  const cell = document.getElementById('tiquete-cell');
+  if(cell && cell.innerHTML.includes('Pendiente')){
+    if(!confirm('El tiquete de báscula está pendiente. ¿Deseas generar el PDF de todas formas?')) return;
+  }
+
+  // Copiar solo el documento (sin el banner de edición)
+  const docEl = document.getElementById('doc-preview');
+  $('print-area').innerHTML = docEl ? docEl.outerHTML : src.innerHTML;
   window.print();
   setTimeout(()=>{ $('print-area').innerHTML=''; }, 1500);
 };
@@ -567,19 +590,39 @@ window.verInforme = function(key){
   openModal('modal-preview');
 };
 
-// ─── ACTUALIZAR TIQUETE ──────────────────────────────────
+// ─── TIQUETE EDITABLE EN PREVIEW ─────────────────────────
+window.aplicarTiquetePreview = function(fbKey){
+  const input = document.getElementById('tiquete-preview-input');
+  const val = input?.value?.trim();
+  if(!val){ toast('Ingresa el número de tiquete'); return; }
+
+  // Actualizar visualmente en la tabla del documento
+  const cell = document.getElementById('tiquete-cell');
+  if(cell) cell.innerHTML = `<strong>${val}</strong>`;
+
+  // Ocultar el banner de advertencia
+  const banner = document.getElementById('tiquete-edit-banner');
+  if(banner) banner.style.display='none';
+
+  // Si tiene key de Firebase, guardar también en la base de datos
+  if(fbKey){
+    update(ref(db,'contenedor_informes/'+fbKey), {tiquete: val})
+      .then(()=>toast('Tiquete guardado ✓'))
+      .catch(()=>toast('Tiquete aplicado (sin conexión)'));
+  } else {
+    toast('Tiquete aplicado ✓ — listo para PDF');
+  }
+};
+
+// ─── ACTUALIZAR TIQUETE (desde histórico) ────────────────
 window.actualizarTiquete = function(key){
   const val = document.getElementById('edit-tiquete')?.value?.trim();
   if(!val){ toast('Ingresa el número de tiquete'); return; }
   update(ref(db,'contenedor_informes/'+key), {tiquete: val}).then(()=>{
     toast('Tiquete actualizado ✓');
-    // Actualizar la tabla en el preview
-    const cells = document.querySelectorAll('#preview-content td');
-    cells.forEach((td,i)=>{
-      if(td.textContent.includes('Tiquete de báscula') && cells[i+1]){
-        cells[i+1].innerHTML = val;
-      }
-    });
+    const cell = document.getElementById('tiquete-cell');
+    if(cell) cell.innerHTML = `<strong>${val}</strong>`;
+    document.getElementById('tiquete-edit-banner')?.remove();
   }).catch(err=>toast('Error: '+err.message));
 };
 
