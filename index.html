@@ -50,7 +50,7 @@ html,body{height:100%;background:var(--bg2);font-family:-apple-system,BlinkMacSy
 .field-readonly input{background:var(--bg2);color:var(--text3)}
 
 /* FOTO GRID */
-.foto-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:4px}
+.foto-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:4px}
 .foto-slot{aspect-ratio:1;border:2px dashed var(--border2);border-radius:var(--radius-sm);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;background:var(--bg2);overflow:hidden;position:relative;transition:border-color .15s}
 .foto-slot:active{background:var(--bg3)}
 .foto-slot.has-foto{border:2px solid var(--border);border-style:solid}
@@ -107,8 +107,12 @@ html,body{height:100%;background:var(--bg2);font-family:-apple-system,BlinkMacSy
 
 /* PRINT */
 @media print{
+  @page{size:letter portrait;margin:15mm 12mm}
   body>*{display:none!important}
-  #print-area{display:block!important;position:fixed;inset:0;padding:20px;background:#fff;z-index:9999;font-size:11px;font-family:Arial,sans-serif}
+  #print-area{display:block!important;background:#fff;font-size:10px;font-family:Arial,sans-serif;color:#1a1a1a;width:100%}
+  #print-area table{width:100%;border-collapse:collapse}
+  #print-area td{padding:4px 6px;font-size:10px}
+  #print-area img{max-width:100%}
 }
 #print-area{display:none}
 </style>
@@ -155,7 +159,7 @@ html,body{height:100%;background:var(--bg2);font-family:-apple-system,BlinkMacSy
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, push, onValue, get } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { getDatabase, ref, push, onValue, get, update } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyB7KbW_QX-ymuRxwNh9byx6hICLEUcRpKE",
@@ -172,7 +176,7 @@ const db = getDatabase(fireApp);
 
 let informes = {};
 let currentTab = 'nuevo';
-let fotos = new Array(6).fill(null); // base64 strings
+let fotos = new Array(10).fill(null); // base64 strings
 const LOGO = "logo.png";
 
 // ─── HELPERS ─────────────────────────────────────────────
@@ -202,7 +206,7 @@ window.switchTab = function(tab){
 
 // ─── RENDER NUEVO INFORME ─────────────────────────────────
 function renderNuevo(){
-  fotos = new Array(6).fill(null);
+  fotos = new Array(10).fill(null);
   const numInf = Object.keys(informes).length + 1;
 
   $('content').innerHTML = `
@@ -268,9 +272,9 @@ function renderNuevo(){
     </div>
 
     <div class="card">
-      <div class="card-title">Registro fotográfico (mín. 1 · máx. 6 fotos)</div>
+      <div class="card-title">Registro fotográfico (mín. 1 · máx. 10 fotos)</div>
       <div class="foto-grid" id="foto-grid">
-        ${[0,1,2,3,4,5].map(i=>`
+        ${[0,1,2,3,4,5,6,7,8,9].map(i=>`
           <div class="foto-slot" id="slot-${i}" onclick="triggerFoto(${i})">
             <svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
             <div class="foto-slot-label">Foto ${i+1}</div>
@@ -387,16 +391,16 @@ window.previsualizarInforme = function(data){
   const d = data || getFormData();
 
   const fotosHTML = d.fotos && d.fotos.length > 0
-    ? `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px">
-        ${d.fotos.map((f,i)=>`<div style="aspect-ratio:1;border-radius:4px;overflow:hidden;border:1px solid #eee">
+    ? `<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-top:6px">
+        ${d.fotos.map((f,i)=>`<div style="aspect-ratio:1;border-radius:3px;overflow:hidden;border:1px solid #eee">
           <img src="${f}" style="width:100%;height:100%;object-fit:cover" alt="Foto ${i+1}">
         </div>`).join('')}
       </div>`
     : `<div style="font-size:11px;color:#999;font-style:italic">Sin fotos adjuntas</div>`;
 
   const row = (label, val) => val
-    ? `<tr><td style="padding:5px 8px;border-bottom:1px solid #f0f0ee;color:#666;font-size:11px;width:50%;font-weight:500">${label}</td>
-           <td style="padding:5px 8px;border-bottom:1px solid #f0f0ee;font-size:11px">${val}</td></tr>`
+    ? `<tr><td style="padding:4px 6px;border-bottom:1px solid #f0f0ee;color:#555;font-size:10.5px;width:48%;font-weight:500">${label}</td>
+           <td style="padding:4px 6px;border-bottom:1px solid #f0f0ee;font-size:10.5px">${val}</td></tr>`
     : '';
 
   $('preview-content').innerHTML = `
@@ -469,7 +473,7 @@ window.printInforme = function(){
 
 // ─── LIMPIAR ──────────────────────────────────────────────
 window.limpiarFormulario = function(){
-  fotos = new Array(6).fill(null);
+  fotos = new Array(10).fill(null);
   renderNuevo();
 };
 
@@ -517,8 +521,8 @@ window.verInforme = function(key){
   $('preview-content').innerHTML = '';
 
   const row = (label, val) => val
-    ? `<tr><td style="padding:5px 8px;border-bottom:1px solid #f0f0ee;color:#666;font-size:11px;width:50%;font-weight:500">${label}</td>
-           <td style="padding:5px 8px;border-bottom:1px solid #f0f0ee;font-size:11px">${val}</td></tr>`
+    ? `<tr><td style="padding:4px 6px;border-bottom:1px solid #f0f0ee;color:#555;font-size:10.5px;width:48%;font-weight:500">${label}</td>
+           <td style="padding:4px 6px;border-bottom:1px solid #f0f0ee;font-size:10.5px">${val}</td></tr>`
     : '';
 
   $('preview-content').innerHTML = `
@@ -561,6 +565,22 @@ window.verInforme = function(key){
     </div>`;
 
   openModal('modal-preview');
+};
+
+// ─── ACTUALIZAR TIQUETE ──────────────────────────────────
+window.actualizarTiquete = function(key){
+  const val = document.getElementById('edit-tiquete')?.value?.trim();
+  if(!val){ toast('Ingresa el número de tiquete'); return; }
+  update(ref(db,'contenedor_informes/'+key), {tiquete: val}).then(()=>{
+    toast('Tiquete actualizado ✓');
+    // Actualizar la tabla en el preview
+    const cells = document.querySelectorAll('#preview-content td');
+    cells.forEach((td,i)=>{
+      if(td.textContent.includes('Tiquete de báscula') && cells[i+1]){
+        cells[i+1].innerHTML = val;
+      }
+    });
+  }).catch(err=>toast('Error: '+err.message));
 };
 
 // ─── INIT ─────────────────────────────────────────────────
