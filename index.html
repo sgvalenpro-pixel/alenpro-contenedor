@@ -165,7 +165,7 @@ html,body{height:100%;background:var(--bg2);font-family:-apple-system,BlinkMacSy
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, push, onValue, get, update } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { getDatabase, ref, set, push, onValue, get, update, remove } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyB7KbW_QX-ymuRxwNh9byx6hICLEUcRpKE",
@@ -526,14 +526,14 @@ window.guardarTiquete = function(fbKey){
   const val = inp ? inp.value.trim() : '';
   if(!val){ toast('Ingresa el número de tiquete'); return; }
 
-  // Reemplazar el campo por el valor en la tabla
+  // Reemplazar el campo editable por texto fijo (ya no editable)
   const td = document.getElementById('td-tiquete');
-  if(td) td.innerHTML = '<strong style="font-size:12px">' + val + '</strong>';
+  if(td) td.innerHTML = '<strong style="font-size:12px;color:#16a34a">✓ ' + val + '</strong>';
 
   // Guardar en Firebase
   if(fbKey){
     update(ref(db,'contenedor_informes/' + fbKey), {tiquete: val})
-      .then(function(){ toast('Tiquete guardado ✓'); })
+      .then(function(){ toast('Tiquete guardado ✓ — ya no editable'); })
       .catch(function(){ toast('Tiquete aplicado (sin conexión)'); });
   } else {
     toast('Tiquete aplicado ✓');
@@ -581,6 +581,81 @@ window.printInforme = function(){
 };
 
 
+
+// ─── LISTA DE INFORMES ───────────────────────────────────
+function renderInformes(filter){
+  if(filter===undefined) filter = document.getElementById('inf-search')?.value||'';
+  const q = filter.toLowerCase().trim();
+
+  let list = Object.entries(informes)
+    .map(([k,v])=>({...v, fbKey:k}))
+    .sort((a,b)=>(b.num||0)-(a.num||0));
+
+  if(q) list = list.filter(h=>JSON.stringify(h).toLowerCase().includes(q));
+
+  const cards = list.length ? list.map(h=>`
+    <div class="informe-card">
+      <div class="informe-top" onclick="verInforme('${h.fbKey}')" style="cursor:pointer">
+        <span class="informe-num">INF-${h.num||'—'}</span>
+        <span class="informe-fecha">${h.fecha||''}</span>
+        <span style="font-size:11px;padding:2px 8px;border-radius:100px;margin-left:4px;
+          background:${h.tiquete?'#f0fdf4':'#fff7ed'};
+          color:${h.tiquete?'#16a34a':'#ea580c'};font-weight:600">
+          ${h.tiquete ? '✓ Tiquete: '+h.tiquete : '⚠ Sin tiquete'}
+        </span>
+      </div>
+      <div class="informe-empresa" onclick="verInforme('${h.fbKey}')" style="cursor:pointer">${h.destinatario||'—'}</div>
+      <div class="informe-detail" onclick="verInforme('${h.fbKey}')" style="cursor:pointer">
+        Contenedor: <strong>${h.contenedor||'—'}</strong> · ${h.producto||'—'} · ${h.sacos||'0'} sacos
+        ${h.fotosCount ? ` · 📷 ${h.fotosCount}` : ''}
+      </div>
+      ${h.novedades && h.novedades!=='SIN NOVEDAD'
+        ? `<div style="margin-top:4px;font-size:11px;color:#dc2626;font-weight:500" onclick="verInforme('${h.fbKey}')">⚠ ${h.novedades}</div>` : ''}
+      <div style="display:flex;justify-content:flex-end;margin-top:8px">
+        <button onclick="eliminarInforme('${h.fbKey}','${(h.contenedor||'').replace(/'/g,"\\'")}','${h.fotoKey||''}')"
+          style="padding:4px 12px;background:transparent;color:#dc2626;border:1px solid #dc2626;border-radius:5px;font-size:12px;cursor:pointer;font-family:inherit">
+          🗑 Eliminar
+        </button>
+      </div>
+    </div>`).join('')
+    : `<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="40" height="40"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><p>Sin informes registrados</p></div>`;
+
+  $('content').innerHTML = `
+    <div class="search-wrap">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input id="inf-search" class="search-input" placeholder="Buscar por contenedor, producto, fecha..." value="${filter}">
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+      <button onclick="eliminarTodo()" style="padding:6px 14px;background:transparent;color:#dc2626;border:1px solid #dc2626;border-radius:5px;font-size:12px;cursor:pointer;font-family:inherit">
+        🗑 Borrar todos los informes
+      </button>
+    </div>
+    ${cards}`;
+
+  document.getElementById('inf-search')?.addEventListener('input', function(){ renderInformes(this.value); });
+}
+
+// ─── ELIMINAR INFORME ─────────────────────────────────────
+window.eliminarInforme = function(key, contenedor, fotoKey){
+  if(!confirm('¿Eliminar el informe del contenedor ' + contenedor + '? Esta acción no se puede deshacer.')) return;
+  remove(ref(db,'contenedor_informes/'+key)).then(()=>{
+    if(fotoKey) try{ localStorage.removeItem(fotoKey); }catch(e){}
+    toast('Informe eliminado');
+  }).catch(err=>toast('Error: '+err.message));
+};
+
+// ─── ELIMINAR TODOS ───────────────────────────────────────
+window.eliminarTodo = function(){
+  const total = Object.keys(informes).length;
+  if(!total){ toast('No hay informes para borrar'); return; }
+  if(!confirm('¿Borrar TODOS los ' + total + ' informes? Esta acción no se puede deshacer.')) return;
+  // Borrar fotos del localStorage
+  Object.values(informes).forEach(h=>{ if(h.fotoKey) try{ localStorage.removeItem(h.fotoKey); }catch(e){} });
+  // Borrar en Firebase
+  set(ref(db,'contenedor_informes'), null).then(()=>{
+    toast('Todos los informes eliminados');
+  }).catch(err=>toast('Error: '+err.message));
+};
 
 // ─── INIT ─────────────────────────────────────────────────
 renderNuevo();
