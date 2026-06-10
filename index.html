@@ -109,14 +109,25 @@ html,body{height:100%;background:var(--bg2);font-family:-apple-system,BlinkMacSy
 @media print{
   @page{size:letter portrait;margin:12mm 10mm}
   body>*{display:none!important}
-  #print-area{display:block!important;background:#fff;font-size:10px;font-family:Arial,sans-serif;color:#1a1a1a;width:100%}
+  #print-area{display:block!important;background:#fff;font-family:Arial,sans-serif;color:#1a1a1a;width:100%}
+  #print-area *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   #print-area table{width:100%;border-collapse:collapse}
   #print-area td{padding:3px 5px;font-size:9.5px}
-  #print-area .foto-section{page-break-before:auto;break-before:auto}
-  #print-area .foto-grid-print{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-top:6px}
-  #print-area .foto-grid-print div{aspect-ratio:1;overflow:hidden;border:1px solid #ddd}
-  #print-area .foto-grid-print img{width:100%;height:100%;object-fit:cover;display:block}
-  #tiquete-edit-banner{display:none!important}
+  #print-area img{max-width:100%;display:block}
+  #print-area div[style*="grid"]{display:grid}
+  /* Evitar que las fotos se corten entre páginas */
+  #print-area div[style*="grid"] > div{
+    break-inside:avoid;
+    page-break-inside:avoid;
+  }
+  /* Evitar que la sección de fotos se corte a la mitad */
+  #print-area div[style*="page-break-inside:avoid"]{
+    break-inside:avoid;
+    page-break-inside:avoid;
+  }
+  /* Inputs no se muestran en PDF */
+  #print-area input{display:none!important}
+  #print-area button{display:none!important}
 }
 #print-area{display:none}
 </style>
@@ -590,40 +601,185 @@ window.verInforme = function(key){
   openModal('modal-preview');
 };
 
-// ─── TIQUETE EDITABLE EN PREVIEW ─────────────────────────
-window.aplicarTiquetePreview = function(fbKey){
-  const input = document.getElementById('tiquete-preview-input');
+// ─── RENDER DOCUMENTO (usado en preview y en histórico) ──
+function renderDoc(d, editable){
+  // d.fotos = array de base64 (solo disponible en el momento de captura)
+  // editable = true cuando se puede editar el tiquete
+  const tiqueteVacio = !d.tiquete || d.tiquete.toString().trim()==='';
+
+  const row = (label, val) =>
+    `<tr>
+      <td style="padding:3px 6px;border-bottom:1px solid #f0f0ee;color:#555;font-size:10px;width:46%;font-weight:600">${label}</td>
+      <td style="padding:3px 6px;border-bottom:1px solid #f0f0ee;font-size:10px">${val||'—'}</td>
+    </tr>`;
+
+  const tiqueteRow = editable
+    ? `<tr>
+        <td style="padding:3px 6px;border-bottom:1px solid #f0f0ee;color:#555;font-size:10px;width:46%;font-weight:600">N° Tiquete de báscula</td>
+        <td style="padding:3px 6px;border-bottom:1px solid #f0f0ee">
+          ${tiqueteVacio
+            ? `<div style="display:flex;gap:6px;align-items:center">
+                <input id="tiquete-input" type="text" placeholder="Ingresar tiquete..." 
+                  style="flex:1;padding:5px 8px;border:1.5px solid #f5c200;border-radius:5px;font-size:13px;font-weight:600;min-width:0">
+                <button onclick="guardarTiquete('${d.fbKey||''}')"
+                  style="padding:5px 10px;background:#1a1a1a;color:#f5c200;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">
+                  Guardar
+                </button>
+              </div>
+              <div id="tiquete-display" style="display:none;font-size:13px;font-weight:700"></div>`
+            : `<span style="font-weight:700">${d.tiquete}</span>`
+          }
+        </td>
+      </tr>`
+    : row('N° Tiquete de báscula', d.tiquete);
+
+  // Fotos
+  let fotosSection = '';
+  if(d.fotos && d.fotos.length > 0){
+    const fotoItems = d.fotos.map((f,i)=>
+      `<div style="break-inside:avoid;page-break-inside:avoid">
+        <img src="${f}" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:3px;border:1px solid #ddd" alt="Foto ${i+1}">
+      </div>`
+    ).join('');
+    fotosSection = `
+      <div style="page-break-inside:avoid;break-inside:avoid;margin-top:8px">
+        <div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#666;letter-spacing:.06em;border-bottom:1px solid #ddd;padding-bottom:3px;margin-bottom:6px">
+          Registro fotográfico (${d.fotos.length} foto${d.fotos.length>1?'s':''})
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:5px">
+          ${fotoItems}
+        </div>
+      </div>`;
+  } else if(d.fotosCount){
+    fotosSection = `<div style="font-size:10px;color:#999;margin-top:8px;font-style:italic">
+      📷 ${d.fotosCount} foto(s) registradas — disponibles en el dispositivo original.</div>`;
+  }
+
+  return `
+    <div id="doc-body" style="font-family:Arial,sans-serif;font-size:11px;color:#1a1a1a">
+
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #1a1a1a;padding-bottom:8px;margin-bottom:8px">
+        <div>
+          <img src="${LOGO}" alt="Alianza del Pacífico" style="height:42px;width:auto;display:block;margin-bottom:3px">
+          <div style="font-size:9px;color:#666">Alianza del Pacífico S.A.S.</div>
+          <div style="font-size:9px;color:#666">Corregimiento Puerto Caldas – Paraje La Marina – Planta ALEN+PRO · Pereira – Risaralda</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-weight:700;font-size:12px">INFORME</div>
+          <div style="font-size:9px;color:#666">Código: ${d.codigo||'INF-TD-001'} · Versión: ${d.version||'00'}</div>
+          <div style="font-size:9px;color:#666">Fecha aprobación: 10-2025 &nbsp;|&nbsp; Página 1 de 1</div>
+          <div style="background:#111;color:#f5c200;padding:2px 10px;border-radius:4px;font-size:11px;font-weight:700;margin-top:4px;display:inline-block">
+            INF-${d.num}
+          </div>
+        </div>
+      </div>
+
+      <div style="font-size:10px;margin-bottom:6px">
+        <strong>Pereira, ${d.fecha}</strong> &nbsp;·&nbsp; Señores: <strong>${d.destinatario}</strong>
+      </div>
+      <div style="font-size:10px;color:#555;margin-bottom:8px">
+        El día <strong>${d.fechaLlegada}</strong> se recibe el tracto camión:
+      </div>
+
+      <table style="width:100%;border-collapse:collapse;border:1px solid #e0e0dd;margin-bottom:6px">
+        <tbody>
+          ${row('Fecha de llegada del vehículo', d.fechaLlegada)}
+          ${row('Hora de inicio del descargue', d.horaInicio)}
+          ${row('Hora de finalización del descargue', d.horaFin)}
+          ${tiqueteRow}
+          ${row('Persona encargada del registro fotográfico', d.fotografo)}
+          ${row('Placas del vehículo', d.placas)}
+          ${row('Placas del tráiler', d.trailer)}
+          ${row('Contenedor', d.contenedor)}
+          ${row('Nombre del conductor', d.conductor)}
+          ${row('N° Cédula', d.cedula)}
+          ${row('Producto', d.producto)}
+          ${row('# Sacos / Bultos', d.sacos)}
+          ${row('Documento de transporte – BL', d.bl)}
+          ${row('Número de precintos', d.precintos)}
+          ${row('Lote impreso', d.lote)}
+          ${row('Novedades', d.novedades||'SIN NOVEDAD')}
+        </tbody>
+      </table>
+
+      ${fotosSection}
+
+      <div style="border-top:1px solid #e0e0dd;margin-top:8px;padding-top:5px;font-size:9px;color:#999;text-align:center">
+        Alianza del Pacífico S.A.S. · Corregimiento Puerto Caldas – Paraje La Marina – Planta ALEN+PRO · Pereira – Risaralda
+      </div>
+    </div>`;
+}
+
+// ─── GUARDAR TIQUETE desde el modal ──────────────────────
+window.guardarTiquete = function(fbKey){
+  const input = document.getElementById('tiquete-input');
   const val = input?.value?.trim();
   if(!val){ toast('Ingresa el número de tiquete'); return; }
 
-  // Actualizar visualmente en la tabla del documento
-  const cell = document.getElementById('tiquete-cell');
-  if(cell) cell.innerHTML = `<strong>${val}</strong>`;
+  // Actualizar visualmente
+  input.closest('div').style.display='none';
+  const disp = document.getElementById('tiquete-display');
+  if(disp){ disp.textContent=val; disp.style.display='block'; }
 
-  // Ocultar el banner de advertencia
-  const banner = document.getElementById('tiquete-edit-banner');
-  if(banner) banner.style.display='none';
-
-  // Si tiene key de Firebase, guardar también en la base de datos
+  // Guardar en Firebase si hay key
   if(fbKey){
-    update(ref(db,'contenedor_informes/'+fbKey), {tiquete: val})
-      .then(()=>toast('Tiquete guardado ✓'))
+    update(ref(db,'contenedor_informes/'+fbKey), {tiquete:val})
+      .then(()=>toast('Tiquete guardado en Firebase ✓'))
       .catch(()=>toast('Tiquete aplicado (sin conexión)'));
   } else {
     toast('Tiquete aplicado ✓ — listo para PDF');
   }
 };
 
-// ─── ACTUALIZAR TIQUETE (desde histórico) ────────────────
-window.actualizarTiquete = function(key){
-  const val = document.getElementById('edit-tiquete')?.value?.trim();
-  if(!val){ toast('Ingresa el número de tiquete'); return; }
-  update(ref(db,'contenedor_informes/'+key), {tiquete: val}).then(()=>{
-    toast('Tiquete actualizado ✓');
-    const cell = document.getElementById('tiquete-cell');
-    if(cell) cell.innerHTML = `<strong>${val}</strong>`;
-    document.getElementById('tiquete-edit-banner')?.remove();
-  }).catch(err=>toast('Error: '+err.message));
+// ─── VISTA PREVIA (desde formulario nuevo) ────────────────
+window.previsualizarInforme = function(data){
+  const d = data || getFormData();
+  $('preview-content').innerHTML = renderDoc(d, true);
+  openModal('modal-preview');
+};
+
+// ─── VER INFORME (desde histórico) ───────────────────────
+window.verInforme = function(key){
+  const h = informes[key];
+  if(!h) return;
+  const d = {...h, fbKey:key, fotos:[]};
+  $('preview-content').innerHTML = renderDoc(d, true);
+  openModal('modal-preview');
+};
+
+// ─── IMPRIMIR PDF ─────────────────────────────────────────
+window.printInforme = function(){
+  const src = document.getElementById('doc-body');
+  if(!src){ toast('Abre la vista previa primero'); return; }
+
+  // Si hay tiquete escrito pero no guardado, aplicarlo antes
+  const inp = document.getElementById('tiquete-input');
+  if(inp && inp.value.trim()){
+    guardarTiquete(inp.closest('[data-fbkey]')?.dataset?.fbkey||'');
+  }
+
+  // Clonar el doc-body para imprimir (sin los inputs)
+  const clone = src.cloneNode(true);
+
+  // Reemplazar el campo input del tiquete por su valor o "Pendiente"
+  const inputEl = clone.querySelector('#tiquete-input');
+  if(inputEl){
+    const val = document.getElementById('tiquete-input')?.value?.trim();
+    const dispEl = clone.querySelector('#tiquete-display');
+    if(val){
+      inputEl.closest('div').innerHTML = `<span style="font-weight:700">${val}</span>`;
+    } else {
+      if(dispEl && dispEl.textContent){
+        inputEl.closest('div').innerHTML = `<span style="font-weight:700">${dispEl.textContent}</span>`;
+      } else {
+        inputEl.closest('div').innerHTML = `<em style="color:#dc2626">Pendiente</em>`;
+      }
+    }
+  }
+
+  $('print-area').innerHTML = clone.outerHTML;
+  window.print();
+  setTimeout(()=>{ $('print-area').innerHTML=''; }, 2000);
 };
 
 // ─── INIT ─────────────────────────────────────────────────
