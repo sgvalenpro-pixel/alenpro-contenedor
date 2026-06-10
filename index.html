@@ -112,19 +112,10 @@ html,body{height:100%;background:var(--bg2);font-family:-apple-system,BlinkMacSy
   #print-area{display:block!important;background:#fff;font-family:Arial,sans-serif;color:#1a1a1a;width:100%}
   #print-area *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   #print-area table{width:100%;border-collapse:collapse}
-  #print-area td{padding:3px 5px;font-size:9.5px}
   #print-area img{max-width:100%;display:block}
-  #print-area div[style*="grid"]{display:grid}
-  /* Evitar que las fotos se corten entre páginas */
-  #print-area div[style*="grid"] > div{
-    break-inside:avoid;
-    page-break-inside:avoid;
-  }
-  /* Evitar que la sección de fotos se corte a la mitad */
-  #print-area div[style*="page-break-inside:avoid"]{
-    break-inside:avoid;
-    page-break-inside:avoid;
-  }
+  #print-area #fotos-grid > div{break-inside:avoid;page-break-inside:avoid}
+}
+#print-area{display:none}
   /* Inputs no se muestran en PDF */
   #print-area input{display:none!important}
   #print-area button{display:none!important}
@@ -389,398 +380,207 @@ window.guardarInforme = function(){
   if(!d.conductor){ toast('Ingresa el nombre del conductor'); return; }
   if(!d.producto){ toast('Ingresa el producto'); return; }
 
-  // Guardar sin las fotos en base64 para no saturar Firebase (fotos solo en local/preview)
+  // Guardar fotos en localStorage con clave del contenedor+fecha
+  const fotoKey = 'fotos_' + d.contenedor + '_' + d.fecha;
+  if(d.fotos && d.fotos.length > 0){
+    try{ localStorage.setItem(fotoKey, JSON.stringify(d.fotos)); }catch(e){}
+  }
+
+  // Guardar datos en Firebase sin fotos base64
   const paraFirebase = {...d};
-  paraFirebase.fotosCount = d.fotos.length;
+  paraFirebase.fotosCount = d.fotos ? d.fotos.length : 0;
+  paraFirebase.fotoKey = fotoKey;
   delete paraFirebase.fotos;
 
   push(ref(db,'contenedor_informes'), paraFirebase).then((newRef)=>{
-    toast(`Informe ${d.contenedor} guardado ✓`);
+    toast('Informe ' + d.contenedor + ' guardado ✓');
+    // Abrir vista previa con fotos incluidas
     d.fbKey = newRef.key;
-    previsualizarInforme(d);
-    openModal('modal-preview');
+    abrirPreview(d);
     fotos = new Array(10).fill(null);
-    setTimeout(()=>renderNuevo(), 300);
-  }).catch(err=>{ toast('Error: '+err.message); console.error(err); });
+    setTimeout(()=>renderNuevo(), 400);
+  }).catch(err=>{ toast('Error: ' + err.message); });
 };
 
-// ─── VISTA PREVIA ─────────────────────────────────────────
-window.previsualizarInforme = function(data){
-  const d = data || getFormData();
-
-  const fotosHTML = d.fotos && d.fotos.length > 0
-    ? `<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin-top:6px">
-        ${d.fotos.map((f,i)=>`<div style="aspect-ratio:1;border-radius:3px;overflow:hidden;border:1px solid #eee">
-          <img src="${f}" style="width:100%;height:100%;object-fit:cover" alt="Foto ${i+1}">
-        </div>`).join('')}
-      </div>`
-    : `<div style="font-size:11px;color:#999;font-style:italic">Sin fotos adjuntas</div>`;
-
-  const row = (label, val) => val
-    ? `<tr><td style="padding:4px 6px;border-bottom:1px solid #f0f0ee;color:#555;font-size:10.5px;width:48%;font-weight:500">${label}</td>
-           <td style="padding:4px 6px;border-bottom:1px solid #f0f0ee;font-size:10.5px">${val}</td></tr>`
-    : '';
-
-  $('preview-content').innerHTML = `
-    <div style="font-family:Arial,sans-serif;font-size:12px;color:#1a1a1a">
-
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #1a1a1a;padding-bottom:10px;margin-bottom:12px">
-        <div>
-          <img src="${LOGO}" alt="ALEN+PRO" style="height:44px;width:auto;display:block;margin-bottom:4px">
-          <div style="font-size:10px;color:#666">Alianza del Pacífico S.A.S.</div>
-          <div style="font-size:10px;color:#666">Corregimiento Puerto Caldas – Paraje La Marina – Planta ALEN+PRO</div>
-        </div>
-        <div style="text-align:right">
-          <div style="font-weight:700;font-size:13px">INFORME</div>
-          <div style="font-size:11px;color:#666">Código: ${d.codigo} · Versión: ${d.version}</div>
-          <div style="font-size:11px;color:#666">Fecha aprobación: 10-2025</div>
-          <div style="background:#111;color:#f5c200;padding:2px 10px;border-radius:4px;font-size:11px;font-weight:700;margin-top:4px;display:inline-block">INF-${d.num}</div>
-        </div>
-      </div>
-
-      <div style="font-size:12px;margin-bottom:12px">
-        <strong>Pereira, ${d.fecha}</strong><br>
-        <span style="color:#666">Señores:</span> <strong>${d.destinatario}</strong>
-      </div>
-      <div style="font-size:11px;color:#555;margin-bottom:12px">
-        El día <strong>${d.fechaLlegada}</strong> se recibe el tracto camión:
-      </div>
-
-      <table style="width:100%;border-collapse:collapse;border:1px solid #e0e0dd;border-radius:6px;overflow:hidden;margin-bottom:12px">
-        <tbody>
-          ${row('Fecha de llegada del vehículo', d.fechaLlegada)}
-          ${row('Hora de inicio del descargue', d.horaInicio)}
-          ${row('Hora de finalización del descargue', d.horaFin)}
-          ${row('N° de tiquete', d.tiquete)}
-          ${row('Persona encargada del registro fotográfico', d.fotografo)}
-          ${row('Placas del vehículo', d.placas)}
-          ${row('Placas del tráiler', d.trailer)}
-          ${row('Contenedor', d.contenedor)}
-          ${row('Nombre del conductor', d.conductor)}
-          ${row('N° Cédula', d.cedula)}
-          ${row('Producto', d.producto)}
-          ${row('# Sacos / Bultos', d.sacos)}
-          ${row('Documento de transporte – BL', d.bl)}
-          ${row('Número de precintos', d.precintos)}
-          ${row('Lote impreso', d.lote)}
-          ${row('Novedades', d.novedades || 'SIN NOVEDAD')}
-        </tbody>
-      </table>
-
-      <div style="margin-bottom:12px">
-        <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#999;margin-bottom:6px;letter-spacing:.06em">Registro fotográfico</div>
-        ${fotosHTML}
-      </div>
-
-      <div style="border-top:1px solid #e0e0dd;padding-top:8px;font-size:10px;color:#999;text-align:center">
-        Alianza del Pacífico S.A.S. · Corregimiento Puerto Caldas – Paraje La Marina – Planta ALEN+PRO · Pereira – Risaralda
-      </div>
-    </div>`;
-
-  openModal('modal-preview');
-};
-
-// ─── IMPRIMIR PDF ─────────────────────────────────────────
-window.printInforme = function(){
-  const src = $('preview-content');
-  if(!src || !src.innerHTML.trim()) return;
-
-  // Verificar tiquete pendiente
-  const input = document.getElementById('tiquete-preview-input');
-  if(input && input.value.trim()){
-    // Hay un tiquete escrito pero no aplicado — aplicarlo primero
-    aplicarTiquetePreview('');
+// ─── ABRIR PREVIEW (unificado para nuevo e histórico) ────────
+function abrirPreview(d){
+  // Recuperar fotos desde localStorage si no vienen en d
+  if((!d.fotos || d.fotos.length === 0) && d.fotoKey){
+    try{
+      const saved = localStorage.getItem(d.fotoKey);
+      if(saved) d.fotos = JSON.parse(saved);
+    }catch(e){}
   }
+  if(!d.fotos) d.fotos = [];
 
-  // Si aún queda pendiente, advertir pero permitir continuar
-  const cell = document.getElementById('tiquete-cell');
-  if(cell && cell.innerHTML.includes('Pendiente')){
-    if(!confirm('El tiquete de báscula está pendiente. ¿Deseas generar el PDF de todas formas?')) return;
-  }
-
-  // Copiar solo el documento (sin el banner de edición)
-  const docEl = document.getElementById('doc-preview');
-  $('print-area').innerHTML = docEl ? docEl.outerHTML : src.innerHTML;
-  window.print();
-  setTimeout(()=>{ $('print-area').innerHTML=''; }, 1500);
-};
-
-// ─── LIMPIAR ──────────────────────────────────────────────
-window.limpiarFormulario = function(){
-  fotos = new Array(10).fill(null);
-  renderNuevo();
-};
-
-// ─── LISTA DE INFORMES ────────────────────────────────────
-function renderInformes(filter){
-  if(filter===undefined) filter = $('inf-search')?.value||'';
-  const q = filter.toLowerCase().trim();
-
-  let list = Object.entries(informes)
-    .map(([k,v])=>({...v,key:k}))
-    .sort((a,b)=>(b.num||0)-(a.num||0));
-
-  if(q) list = list.filter(h=>JSON.stringify(h).toLowerCase().includes(q));
-
-  const cards = list.length ? list.map(h=>`
-    <div class="informe-card" onclick="verInforme('${h.key}')">
-      <div class="informe-top">
-        <span class="informe-num">INF-${h.num||'—'}</span>
-        <span class="informe-fecha">${h.fecha||''}</span>
-      </div>
-      <div class="informe-empresa">${h.destinatario||'—'}</div>
-      <div class="informe-detail">
-        Contenedor: <strong>${h.contenedor||'—'}</strong> · ${h.producto||'—'} · ${h.sacos||'0'} sacos
-        ${h.fotosCount?` · 📷 ${h.fotosCount} foto(s)`:''}
-      </div>
-      ${h.novedades && h.novedades!=='SIN NOVEDAD' ? `<div style="margin-top:6px;font-size:11px;color:#dc2626;font-weight:500">⚠ ${h.novedades}</div>`:''}
-    </div>`).join('')
-    : `<div class="empty"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><p>Sin informes registrados</p></div>`;
-
-  $('content').innerHTML = `
-    <div class="search-wrap">
-      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      <input id="inf-search" class="search-input" placeholder="Buscar por contenedor, producto, fecha..." value="${filter}">
-    </div>
-    ${cards}`;
-
-  $('inf-search').addEventListener('input', function(){ renderInformes(this.value); });
-}
-
-// Ver informe del histórico (sin fotos, solo datos)
-window.verInforme = function(key){
-  const h = informes[key];
-  if(!h) return;
-  const d = {...h, fotos:[]};
-  $('preview-content').innerHTML = '';
-
-  const row = (label, val) => val
-    ? `<tr><td style="padding:4px 6px;border-bottom:1px solid #f0f0ee;color:#555;font-size:10.5px;width:48%;font-weight:500">${label}</td>
-           <td style="padding:4px 6px;border-bottom:1px solid #f0f0ee;font-size:10.5px">${val}</td></tr>`
-    : '';
-
-  $('preview-content').innerHTML = `
-    <div style="font-family:Arial,sans-serif;font-size:12px;color:#1a1a1a">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #1a1a1a;padding-bottom:10px;margin-bottom:12px">
-        <div>
-          <img src="${LOGO}" alt="ALEN+PRO" style="height:44px;width:auto;display:block;margin-bottom:4px">
-          <div style="font-size:10px;color:#666">Alianza del Pacífico S.A.S. · Puerto Caldas, Pereira</div>
-        </div>
-        <div style="text-align:right">
-          <div style="font-weight:700;font-size:13px">INFORME</div>
-          <div style="background:#111;color:#f5c200;padding:2px 10px;border-radius:4px;font-size:11px;font-weight:700;margin-top:4px;display:inline-block">INF-${d.num}</div>
-        </div>
-      </div>
-      <div style="font-size:11px;color:#555;margin-bottom:10px">Señores: <strong>${d.destinatario}</strong> · ${d.fecha}</div>
-      <table style="width:100%;border-collapse:collapse;border:1px solid #e0e0dd;margin-bottom:10px">
-        <tbody>
-          ${row('Fecha llegada', d.fechaLlegada)}
-          ${row('Hora inicio descargue', d.horaInicio)}
-          ${row('Hora fin descargue', d.horaFin)}
-          ${row('N° Tiquete', d.tiquete)}
-          ${row('Registro fotográfico', d.fotografo)}
-          ${row('Placas vehículo', d.placas)}
-          ${row('Placas tráiler', d.trailer)}
-          ${row('Contenedor', d.contenedor)}
-          ${row('Conductor', d.conductor)}
-          ${row('Cédula', d.cedula)}
-          ${row('Producto', d.producto)}
-          ${row('# Sacos / Bultos', d.sacos)}
-          ${row('BL', d.bl)}
-          ${row('Precintos', d.precintos)}
-          ${row('Lote impreso', d.lote)}
-          ${row('Novedades', d.novedades||'SIN NOVEDAD')}
-        </tbody>
-      </table>
-      ${d.fotosCount ? `<div style="font-size:11px;color:#999;font-style:italic">📷 Este informe tiene ${d.fotosCount} foto(s) — disponibles en el dispositivo donde se registró.</div>` : ''}
-      <div style="border-top:1px solid #e0e0dd;padding-top:8px;font-size:10px;color:#999;text-align:center">
-        Alianza del Pacífico S.A.S. · Planta ALEN+PRO · Pereira – Risaralda
-      </div>
-    </div>`;
-
-  openModal('modal-preview');
-};
-
-// ─── RENDER DOCUMENTO (usado en preview y en histórico) ──
-function renderDoc(d, editable){
-  // d.fotos = array de base64 (solo disponible en el momento de captura)
-  // editable = true cuando se puede editar el tiquete
-  const tiqueteVacio = !d.tiquete || d.tiquete.toString().trim()==='';
+  const tiqueteVacio = !d.tiquete || d.tiquete.toString().trim() === '';
 
   const row = (label, val) =>
-    `<tr>
-      <td style="padding:3px 6px;border-bottom:1px solid #f0f0ee;color:#555;font-size:10px;width:46%;font-weight:600">${label}</td>
-      <td style="padding:3px 6px;border-bottom:1px solid #f0f0ee;font-size:10px">${val||'—'}</td>
-    </tr>`;
+    '<tr>' +
+      '<td style="padding:4px 6px;border-bottom:1px solid #f0f0ee;color:#555;font-size:10px;width:46%;font-weight:600">' + label + '</td>' +
+      '<td style="padding:4px 6px;border-bottom:1px solid #f0f0ee;font-size:10px">' + (val||'—') + '</td>' +
+    '</tr>';
 
-  const tiqueteRow = editable
-    ? `<tr>
-        <td style="padding:3px 6px;border-bottom:1px solid #f0f0ee;color:#555;font-size:10px;width:46%;font-weight:600">N° Tiquete de báscula</td>
-        <td style="padding:3px 6px;border-bottom:1px solid #f0f0ee">
-          ${tiqueteVacio
-            ? `<div style="display:flex;gap:6px;align-items:center">
-                <input id="tiquete-input" type="text" placeholder="Ingresar tiquete..." 
-                  style="flex:1;padding:5px 8px;border:1.5px solid #f5c200;border-radius:5px;font-size:13px;font-weight:600;min-width:0">
-                <button onclick="guardarTiquete('${d.fbKey||''}')"
-                  style="padding:5px 10px;background:#1a1a1a;color:#f5c200;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap">
-                  Guardar
-                </button>
-              </div>
-              <div id="tiquete-display" style="display:none;font-size:13px;font-weight:700"></div>`
-            : `<span style="font-weight:700">${d.tiquete}</span>`
-          }
-        </td>
-      </tr>`
+  // Fila especial del tiquete — siempre editable si está vacío
+  const tiqueteFila = tiqueteVacio
+    ? '<tr>' +
+        '<td style="padding:4px 6px;border-bottom:1px solid #f0f0ee;color:#555;font-size:10px;width:46%;font-weight:600">N° Tiquete de báscula</td>' +
+        '<td style="padding:4px 6px;border-bottom:1px solid #f0f0ee" id="td-tiquete">' +
+          '<div style="display:flex;gap:6px;align-items:center">' +
+            '<input id="inp-tiquete" type="text" placeholder="Número de tiquete" ' +
+              'style="flex:1;padding:6px 8px;border:2px solid #f5c200;border-radius:5px;font-size:13px;font-weight:600;min-width:0">' +
+            '<button onclick="guardarTiquete(\'' + (d.fbKey||'') + '\')" ' +
+              'style="padding:6px 12px;background:#1a1a1a;color:#f5c200;border:none;border-radius:5px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0">' +
+              'Guardar' +
+            '</button>' +
+          '</div>' +
+        '</td>' +
+      '</tr>'
     : row('N° Tiquete de báscula', d.tiquete);
 
   // Fotos
-  let fotosSection = '';
+  let fotosHTML = '';
   if(d.fotos && d.fotos.length > 0){
-    const fotoItems = d.fotos.map((f,i)=>
-      `<div style="break-inside:avoid;page-break-inside:avoid">
-        <img src="${f}" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:3px;border:1px solid #ddd" alt="Foto ${i+1}">
-      </div>`
-    ).join('');
-    fotosSection = `
-      <div style="page-break-inside:avoid;break-inside:avoid;margin-top:8px">
-        <div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#666;letter-spacing:.06em;border-bottom:1px solid #ddd;padding-bottom:3px;margin-bottom:6px">
-          Registro fotográfico (${d.fotos.length} foto${d.fotos.length>1?'s':''})
-        </div>
-        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:5px">
-          ${fotoItems}
-        </div>
-      </div>`;
-  } else if(d.fotosCount){
-    fotosSection = `<div style="font-size:10px;color:#999;margin-top:8px;font-style:italic">
-      📷 ${d.fotosCount} foto(s) registradas — disponibles en el dispositivo original.</div>`;
+    const items = d.fotos.map(function(f,i){
+      return '<div style="aspect-ratio:1;overflow:hidden;border:1px solid #ddd;border-radius:3px">' +
+               '<img src="' + f + '" style="width:100%;height:100%;object-fit:cover;display:block" alt="Foto ' + (i+1) + '">' +
+             '</div>';
+    }).join('');
+    fotosHTML =
+      '<div style="margin-top:8px">' +
+        '<div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#666;letter-spacing:.05em;' +
+             'border-bottom:1px solid #ddd;padding-bottom:3px;margin-bottom:6px">' +
+          'Registro fotográfico (' + d.fotos.length + ' foto' + (d.fotos.length>1?'s':'') + ')' +
+        '</div>' +
+        '<div id="fotos-grid" style="display:grid;grid-template-columns:repeat(5,1fr);gap:5px">' +
+          items +
+        '</div>' +
+      '</div>';
+  } else if(d.fotosCount > 0){
+    fotosHTML = '<div style="font-size:10px;color:#999;margin-top:8px;font-style:italic">📷 ' + d.fotosCount + ' foto(s) registradas en el dispositivo original.</div>';
   }
 
-  return `
-    <div id="doc-body" style="font-family:Arial,sans-serif;font-size:11px;color:#1a1a1a">
+  const html =
+    '<div id="doc-cuerpo" style="font-family:Arial,sans-serif;font-size:11px;color:#1a1a1a">' +
 
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #1a1a1a;padding-bottom:8px;margin-bottom:8px">
-        <div>
-          <img src="${LOGO}" alt="Alianza del Pacífico" style="height:42px;width:auto;display:block;margin-bottom:3px">
-          <div style="font-size:9px;color:#666">Alianza del Pacífico S.A.S.</div>
-          <div style="font-size:9px;color:#666">Corregimiento Puerto Caldas – Paraje La Marina – Planta ALEN+PRO · Pereira – Risaralda</div>
-        </div>
-        <div style="text-align:right">
-          <div style="font-weight:700;font-size:12px">INFORME</div>
-          <div style="font-size:9px;color:#666">Código: ${d.codigo||'INF-TD-001'} · Versión: ${d.version||'00'}</div>
-          <div style="font-size:9px;color:#666">Fecha aprobación: 10-2025 &nbsp;|&nbsp; Página 1 de 1</div>
-          <div style="background:#111;color:#f5c200;padding:2px 10px;border-radius:4px;font-size:11px;font-weight:700;margin-top:4px;display:inline-block">
-            INF-${d.num}
-          </div>
-        </div>
-      </div>
+      // ENCABEZADO
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #1a1a1a;padding-bottom:8px;margin-bottom:8px">' +
+        '<div>' +
+          '<img src="logo.png" alt="Alianza del Pacifico" style="height:42px;width:auto;display:block;margin-bottom:3px">' +
+          '<div style="font-size:9px;color:#666">Alianza del Pacífico S.A.S.</div>' +
+          '<div style="font-size:9px;color:#666">Corregimiento Puerto Caldas – Paraje La Marina – Planta ALEN+PRO · Pereira – Risaralda</div>' +
+        '</div>' +
+        '<div style="text-align:right">' +
+          '<div style="font-weight:700;font-size:12px">INFORME</div>' +
+          '<div style="font-size:9px;color:#666">Código: ' + (d.codigo||'INF-TD-001') + ' · Versión: ' + (d.version||'00') + '</div>' +
+          '<div style="font-size:9px;color:#666">Fecha aprobación: 10-2025</div>' +
+          '<div style="background:#111;color:#f5c200;padding:2px 10px;border-radius:4px;font-size:11px;font-weight:700;margin-top:4px;display:inline-block">INF-' + d.num + '</div>' +
+        '</div>' +
+      '</div>' +
 
-      <div style="font-size:10px;margin-bottom:6px">
-        <strong>Pereira, ${d.fecha}</strong> &nbsp;·&nbsp; Señores: <strong>${d.destinatario}</strong>
-      </div>
-      <div style="font-size:10px;color:#555;margin-bottom:8px">
-        El día <strong>${d.fechaLlegada}</strong> se recibe el tracto camión:
-      </div>
+      // DESTINATARIO
+      '<div style="font-size:10px;margin-bottom:6px">' +
+        '<strong>Pereira, ' + (d.fecha||'') + '</strong> · Señores: <strong>' + (d.destinatario||'') + '</strong>' +
+      '</div>' +
+      '<div style="font-size:10px;color:#555;margin-bottom:8px">' +
+        'El día <strong>' + (d.fechaLlegada||'') + '</strong> se recibe el tracto camión:' +
+      '</div>' +
 
-      <table style="width:100%;border-collapse:collapse;border:1px solid #e0e0dd;margin-bottom:6px">
-        <tbody>
-          ${row('Fecha de llegada del vehículo', d.fechaLlegada)}
-          ${row('Hora de inicio del descargue', d.horaInicio)}
-          ${row('Hora de finalización del descargue', d.horaFin)}
-          ${tiqueteRow}
-          ${row('Persona encargada del registro fotográfico', d.fotografo)}
-          ${row('Placas del vehículo', d.placas)}
-          ${row('Placas del tráiler', d.trailer)}
-          ${row('Contenedor', d.contenedor)}
-          ${row('Nombre del conductor', d.conductor)}
-          ${row('N° Cédula', d.cedula)}
-          ${row('Producto', d.producto)}
-          ${row('# Sacos / Bultos', d.sacos)}
-          ${row('Documento de transporte – BL', d.bl)}
-          ${row('Número de precintos', d.precintos)}
-          ${row('Lote impreso', d.lote)}
-          ${row('Novedades', d.novedades||'SIN NOVEDAD')}
-        </tbody>
-      </table>
+      // TABLA DE DATOS
+      '<table style="width:100%;border-collapse:collapse;border:1px solid #e0e0dd;margin-bottom:8px">' +
+        '<tbody>' +
+          row('Fecha de llegada del vehículo', d.fechaLlegada) +
+          row('Hora de inicio del descargue', d.horaInicio) +
+          row('Hora de finalización del descargue', d.horaFin) +
+          tiqueteFila +
+          row('Persona encargada del registro fotográfico', d.fotografo) +
+          row('Placas del vehículo', d.placas) +
+          row('Placas del tráiler', d.trailer) +
+          row('Contenedor', d.contenedor) +
+          row('Nombre del conductor', d.conductor) +
+          row('N° Cédula', d.cedula) +
+          row('Producto', d.producto) +
+          row('# Sacos / Bultos', d.sacos) +
+          row('Documento de transporte – BL', d.bl) +
+          row('Número de precintos', d.precintos) +
+          row('Lote impreso', d.lote) +
+          row('Novedades', d.novedades||'SIN NOVEDAD') +
+        '</tbody>' +
+      '</table>' +
 
-      ${fotosSection}
+      fotosHTML +
 
-      <div style="border-top:1px solid #e0e0dd;margin-top:8px;padding-top:5px;font-size:9px;color:#999;text-align:center">
-        Alianza del Pacífico S.A.S. · Corregimiento Puerto Caldas – Paraje La Marina – Planta ALEN+PRO · Pereira – Risaralda
-      </div>
-    </div>`;
+      // PIE
+      '<div style="border-top:1px solid #e0e0dd;margin-top:8px;padding-top:5px;font-size:9px;color:#999;text-align:center">' +
+        'Alianza del Pacífico S.A.S. · Corregimiento Puerto Caldas – Paraje La Marina – Planta ALEN+PRO · Pereira – Risaralda' +
+      '</div>' +
+    '</div>';
+
+  document.getElementById('preview-content').innerHTML = html;
+  openModal('modal-preview');
 }
 
-// ─── GUARDAR TIQUETE desde el modal ──────────────────────
+// ─── GUARDAR TIQUETE POST-GUARDADO ───────────────────────
 window.guardarTiquete = function(fbKey){
-  const input = document.getElementById('tiquete-input');
-  const val = input?.value?.trim();
+  const inp = document.getElementById('inp-tiquete');
+  const val = inp ? inp.value.trim() : '';
   if(!val){ toast('Ingresa el número de tiquete'); return; }
 
-  // Actualizar visualmente
-  input.closest('div').style.display='none';
-  const disp = document.getElementById('tiquete-display');
-  if(disp){ disp.textContent=val; disp.style.display='block'; }
+  // Reemplazar el campo por el valor en la tabla
+  const td = document.getElementById('td-tiquete');
+  if(td) td.innerHTML = '<strong style="font-size:12px">' + val + '</strong>';
 
-  // Guardar en Firebase si hay key
+  // Guardar en Firebase
   if(fbKey){
-    update(ref(db,'contenedor_informes/'+fbKey), {tiquete:val})
-      .then(()=>toast('Tiquete guardado en Firebase ✓'))
-      .catch(()=>toast('Tiquete aplicado (sin conexión)'));
+    update(ref(db,'contenedor_informes/' + fbKey), {tiquete: val})
+      .then(function(){ toast('Tiquete guardado ✓'); })
+      .catch(function(){ toast('Tiquete aplicado (sin conexión)'); });
   } else {
-    toast('Tiquete aplicado ✓ — listo para PDF');
+    toast('Tiquete aplicado ✓');
   }
 };
 
-// ─── VISTA PREVIA (desde formulario nuevo) ────────────────
+// ─── VISTA PREVIA DESDE FORMULARIO ───────────────────────
 window.previsualizarInforme = function(data){
   const d = data || getFormData();
-  $('preview-content').innerHTML = renderDoc(d, true);
-  openModal('modal-preview');
+  abrirPreview(d);
 };
 
-// ─── VER INFORME (desde histórico) ───────────────────────
+// ─── VER INFORME DESDE HISTÓRICO ─────────────────────────
 window.verInforme = function(key){
   const h = informes[key];
   if(!h) return;
-  const d = {...h, fbKey:key, fotos:[]};
-  $('preview-content').innerHTML = renderDoc(d, true);
-  openModal('modal-preview');
+  const d = Object.assign({}, h, {fbKey: key});
+  abrirPreview(d);
 };
 
 // ─── IMPRIMIR PDF ─────────────────────────────────────────
 window.printInforme = function(){
-  const src = document.getElementById('doc-body');
-  if(!src){ toast('Abre la vista previa primero'); return; }
+  const src = document.getElementById('doc-cuerpo');
+  if(!src){ toast('Primero abre la vista previa'); return; }
 
-  // Si hay tiquete escrito pero no guardado, aplicarlo antes
-  const inp = document.getElementById('tiquete-input');
+  // Si hay un tiquete escrito sin guardar, aplicarlo ahora
+  const inp = document.getElementById('inp-tiquete');
   if(inp && inp.value.trim()){
-    guardarTiquete(inp.closest('[data-fbkey]')?.dataset?.fbkey||'');
+    const td = document.getElementById('td-tiquete');
+    if(td) td.innerHTML = '<strong style="font-size:12px">' + inp.value.trim() + '</strong>';
   }
 
-  // Clonar el doc-body para imprimir (sin los inputs)
+  // Clonar y limpiar inputs/botones para el PDF
   const clone = src.cloneNode(true);
-
-  // Reemplazar el campo input del tiquete por su valor o "Pendiente"
-  const inputEl = clone.querySelector('#tiquete-input');
-  if(inputEl){
-    const val = document.getElementById('tiquete-input')?.value?.trim();
-    const dispEl = clone.querySelector('#tiquete-display');
-    if(val){
-      inputEl.closest('div').innerHTML = `<span style="font-weight:700">${val}</span>`;
-    } else {
-      if(dispEl && dispEl.textContent){
-        inputEl.closest('div').innerHTML = `<span style="font-weight:700">${dispEl.textContent}</span>`;
-      } else {
-        inputEl.closest('div').innerHTML = `<em style="color:#dc2626">Pendiente</em>`;
-      }
-    }
+  clone.querySelectorAll('input, button').forEach(function(el){ el.remove(); });
+  // Si el td-tiquete quedó vacío, poner "Pendiente"
+  const tdClone = clone.querySelector('#td-tiquete');
+  if(tdClone && !tdClone.textContent.trim()){
+    tdClone.innerHTML = '<em style="color:#dc2626">Pendiente</em>';
   }
 
-  $('print-area').innerHTML = clone.outerHTML;
+  document.getElementById('print-area').innerHTML = clone.outerHTML;
   window.print();
-  setTimeout(()=>{ $('print-area').innerHTML=''; }, 2000);
+  setTimeout(function(){ document.getElementById('print-area').innerHTML = ''; }, 2000);
 };
+
+
 
 // ─── INIT ─────────────────────────────────────────────────
 renderNuevo();
