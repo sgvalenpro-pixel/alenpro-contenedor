@@ -106,16 +106,54 @@ html,body{height:100%;background:var(--bg2);font-family:-apple-system,BlinkMacSy
 .empty svg{width:40px;height:40px;stroke:var(--border2);fill:none;stroke-width:1.5;margin:0 auto 12px;display:block}
 
 /* PRINT */
-@media print{
-  @page{size:letter portrait;margin:12mm 10mm}
-  body>*{display:none!important}
-  #print-area{display:block!important;background:#fff;font-family:Arial,sans-serif;color:#1a1a1a;width:100%}
-  #print-area *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
-  #print-area table{width:100%;border-collapse:collapse}
-  #print-area img{max-width:100%;display:block}
-  #print-area #fotos-grid > div{break-inside:avoid;page-break-inside:avoid}
+/* Páginas en pantalla */
+.pagina{
+  background:#fff;
+  border:1px solid #e0e0dd;
+  border-radius:8px;
+  padding:16px;
+  margin-bottom:8px;
+  box-shadow:0 1px 4px rgba(0,0,0,.06);
 }
-#print-area{display:none}
+.pagina2{ margin-top:4px; }
+.separador-pagina{
+  text-align:center;
+  font-size:11px;
+  color:#aaa;
+  padding:8px 0;
+  border-top:1px dashed #ddd;
+  border-bottom:1px dashed #ddd;
+  margin:4px 0;
+}
+
+/* Impresión */
+@media print{
+  @page{ size:letter portrait; margin:12mm 10mm }
+  body>*{ display:none!important }
+  #print-area{ display:block!important; background:#fff; width:100%; }
+  #print-area *{ -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  .separador-pagina{ display:none!important }
+  .pagina{
+    display:block;
+    padding:0;
+    border:none;
+    box-shadow:none;
+    page-break-after:always;
+    break-after:page;
+  }
+  .pagina:last-child{
+    page-break-after:avoid;
+    break-after:avoid;
+  }
+  #print-area table{ width:100%; border-collapse:collapse; }
+  #print-area td{ padding:3px 5px; font-size:9.5px; }
+  #print-area img{ max-width:100%; display:block; }
+  #print-area div[style*="grid"] > div{
+    break-inside:avoid;
+    page-break-inside:avoid;
+  }
+}
+#print-area{ display:none }
   /* Inputs no se muestran en PDF */
   #print-area input{display:none!important}
   #print-area button{display:none!important}
@@ -438,30 +476,9 @@ function abrirPreview(d){
       '</tr>'
     : row('N° Tiquete de báscula', d.tiquete);
 
-  // Fotos
-  let fotosHTML = '';
-  if(d.fotos && d.fotos.length > 0){
-    const items = d.fotos.map(function(f,i){
-      return '<div style="aspect-ratio:1;overflow:hidden;border:1px solid #ddd;border-radius:3px">' +
-               '<img src="' + f + '" style="width:100%;height:100%;object-fit:cover;display:block" alt="Foto ' + (i+1) + '">' +
-             '</div>';
-    }).join('');
-    fotosHTML =
-      '<div style="margin-top:8px">' +
-        '<div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#666;letter-spacing:.05em;' +
-             'border-bottom:1px solid #ddd;padding-bottom:3px;margin-bottom:6px">' +
-          'Registro fotográfico (' + d.fotos.length + ' foto' + (d.fotos.length>1?'s':'') + ')' +
-        '</div>' +
-        '<div id="fotos-grid" style="display:grid;grid-template-columns:repeat(5,1fr);gap:5px">' +
-          items +
-        '</div>' +
-      '</div>';
-  } else if(d.fotosCount > 0){
-    fotosHTML = '<div style="font-size:10px;color:#999;margin-top:8px;font-style:italic">📷 ' + d.fotosCount + ' foto(s) registradas en el dispositivo original.</div>';
-  }
-
-  const html =
-    '<div id="doc-cuerpo" style="font-family:Arial,sans-serif;font-size:11px;color:#1a1a1a">' +
+  // ── Página 1: datos del informe ──────────────────────────
+  const pag1 =
+    '<div style="font-family:Arial,sans-serif;font-size:11px;color:#1a1a1a;width:100%">' +
 
       // ENCABEZADO
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #1a1a1a;padding-bottom:8px;margin-bottom:8px">' +
@@ -478,7 +495,6 @@ function abrirPreview(d){
         '</div>' +
       '</div>' +
 
-      // DESTINATARIO
       '<div style="font-size:10px;margin-bottom:6px">' +
         '<strong>Pereira, ' + (d.fecha||'') + '</strong> · Señores: <strong>' + (d.destinatario||'') + '</strong>' +
       '</div>' +
@@ -486,7 +502,6 @@ function abrirPreview(d){
         'El día <strong>' + (d.fechaLlegada||'') + '</strong> se recibe el tracto camión:' +
       '</div>' +
 
-      // TABLA DE DATOS
       '<table style="width:100%;border-collapse:collapse;border:1px solid #e0e0dd;margin-bottom:8px">' +
         '<tbody>' +
           row('Fecha de llegada del vehículo', d.fechaLlegada) +
@@ -508,12 +523,60 @@ function abrirPreview(d){
         '</tbody>' +
       '</table>' +
 
-      fotosHTML +
-
-      // PIE
-      '<div style="border-top:1px solid #e0e0dd;margin-top:8px;padding-top:5px;font-size:9px;color:#999;text-align:center">' +
+      '<div style="border-top:1px solid #e0e0dd;padding-top:5px;font-size:9px;color:#999;text-align:center">' +
         'Alianza del Pacífico S.A.S. · Corregimiento Puerto Caldas – Paraje La Marina – Planta ALEN+PRO · Pereira – Risaralda' +
       '</div>' +
+    '</div>';
+
+  // ── Página 2: registro fotográfico ───────────────────────
+  let pag2 = '';
+  if(d.fotos && d.fotos.length > 0){
+    // Grid adaptativo: 5 columnas para ≤10 fotos, tamaño fijo para que quepan en carta
+    const cols = d.fotos.length <= 4 ? 2 : d.fotos.length <= 6 ? 3 : 5;
+    const fotoItems = d.fotos.map(function(f, i){
+      return '<div style="break-inside:avoid;page-break-inside:avoid;overflow:hidden;border:1px solid #ddd;border-radius:4px;background:#f9f9f9">' +
+               '<img src="' + f + '" style="width:100%;height:100%;object-fit:cover;display:block" alt="Foto ' + (i+1) + '">' +
+             '</div>';
+    }).join('');
+
+    pag2 =
+      '<div style="font-family:Arial,sans-serif;color:#1a1a1a;width:100%">' +
+
+        // Mini encabezado página 2
+        '<div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #1a1a1a;padding-bottom:6px;margin-bottom:12px">' +
+          '<img src="logo.png" alt="Alianza del Pacifico" style="height:32px;width:auto;display:block">' +
+          '<div style="text-align:right;font-size:9px;color:#666">' +
+            'INF-' + d.num + ' · ' + (d.fecha||'') + ' · Contenedor: ' + (d.contenedor||'') +
+          '</div>' +
+        '</div>' +
+
+        '<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#555;letter-spacing:.06em;margin-bottom:10px">' +
+          'Registro fotográfico — ' + d.fotos.length + ' foto' + (d.fotos.length>1?'s':'') +
+        '</div>' +
+
+        '<div style="display:grid;grid-template-columns:repeat(' + cols + ',1fr);gap:8px;aspect-ratio:auto">' +
+          fotoItems +
+        '</div>' +
+
+        '<div style="border-top:1px solid #e0e0dd;margin-top:12px;padding-top:5px;font-size:9px;color:#999;text-align:center">' +
+          'Alianza del Pacífico S.A.S. · Corregimiento Puerto Caldas – Paraje La Marina – Planta ALEN+PRO · Pereira – Risaralda' +
+        '</div>' +
+      '</div>';
+  } else if(d.fotosCount > 0){
+    pag2 = '<div style="font-family:Arial,sans-serif;font-size:10px;color:#999;padding:20px;text-align:center">' +
+             '📷 ' + d.fotosCount + ' foto(s) registradas — disponibles en el dispositivo original.' +
+           '</div>';
+  }
+
+  // Contenedor completo con separador de páginas visual
+  const html =
+    '<div id="doc-cuerpo">' +
+      // Página 1
+      '<div class="pagina">' + pag1 + '</div>' +
+      // Separador visual en pantalla (no se imprime)
+      (pag2 ? '<div class="separador-pagina">— Página 2: Registro fotográfico —</div>' : '') +
+      // Página 2
+      (pag2 ? '<div class="pagina pagina2">' + pag2 + '</div>' : '') +
     '</div>';
 
   document.getElementById('preview-content').innerHTML = html;
@@ -559,17 +622,20 @@ window.printInforme = function(){
   const src = document.getElementById('doc-cuerpo');
   if(!src){ toast('Primero abre la vista previa'); return; }
 
-  // Si hay un tiquete escrito sin guardar, aplicarlo ahora
+  // Si hay tiquete escrito sin guardar, aplicarlo antes de imprimir
   const inp = document.getElementById('inp-tiquete');
   if(inp && inp.value.trim()){
     const td = document.getElementById('td-tiquete');
-    if(td) td.innerHTML = '<strong style="font-size:12px">' + inp.value.trim() + '</strong>';
+    if(td) td.innerHTML = '<strong style="font-size:12px;color:#16a34a">✓ ' + inp.value.trim() + '</strong>';
   }
 
-  // Clonar y limpiar inputs/botones para el PDF
+  // Clonar documento completo (pag1 + pag2)
   const clone = src.cloneNode(true);
+
+  // Limpiar inputs y botones — no deben aparecer en PDF
   clone.querySelectorAll('input, button').forEach(function(el){ el.remove(); });
-  // Si el td-tiquete quedó vacío, poner "Pendiente"
+
+  // Si tiquete quedó vacío en el clone, marcarlo como pendiente
   const tdClone = clone.querySelector('#td-tiquete');
   if(tdClone && !tdClone.textContent.trim()){
     tdClone.innerHTML = '<em style="color:#dc2626">Pendiente</em>';
@@ -577,7 +643,7 @@ window.printInforme = function(){
 
   document.getElementById('print-area').innerHTML = clone.outerHTML;
   window.print();
-  setTimeout(function(){ document.getElementById('print-area').innerHTML = ''; }, 2000);
+  setTimeout(function(){ document.getElementById('print-area').innerHTML = ''; }, 2500);
 };
 
 
