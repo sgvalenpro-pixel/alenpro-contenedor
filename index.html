@@ -10,6 +10,8 @@
 <link rel="manifest" href="manifest.json">
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%;-moz-text-size-adjust:100%}
 :root{
   --bg:#fff;--bg2:#f7f7f5;--bg3:#f0f0ee;
   --text:#1a1a1a;--text2:#555;--text3:#999;
@@ -18,7 +20,7 @@
   --radius:10px;--radius-sm:7px;
   --shadow:0 1px 4px rgba(0,0,0,.08);
 }
-html,body{height:100%;background:var(--bg2);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:var(--text);font-size:15px}
+html,body{height:100%;background:var(--bg2);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:var(--text);font-size:15px}
 .app{display:flex;flex-direction:column;min-height:100vh;max-width:640px;margin:0 auto;background:var(--bg)}
 
 /* HEADER */
@@ -27,7 +29,7 @@ html,body{height:100%;background:var(--bg2);font-family:-apple-system,BlinkMacSy
 
 /* NAV */
 .nav{display:flex;background:#fff;border-bottom:1px solid var(--border);flex-shrink:0}
-.nav-btn{flex:1;padding:10px 6px 8px;border:none;background:transparent;color:var(--text3);font-size:11px;font-weight:500;cursor:pointer;border-bottom:2px solid transparent;font-family:inherit;white-space:nowrap}
+.nav-btn{flex:1;padding:10px 6px 8px;border:none;background:transparent;color:var(--text3);font-size:11px;font-weight:500;cursor:pointer;border-bottom:2px solid transparent;font-family:inherit;white-space:nowrap;-webkit-appearance:none;appearance:none}
 .nav-btn.active{color:var(--dark);border-bottom-color:var(--yellow);font-weight:600}
 .nav-btn svg{display:block;margin:0 auto 3px;width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8}
 
@@ -42,33 +44,47 @@ html,body{height:100%;background:var(--bg2);font-family:-apple-system,BlinkMacSy
 /* FIELDS */
 .field{margin-bottom:10px}
 .field label{display:block;font-size:12px;color:var(--text2);margin-bottom:4px;font-weight:500}
-.field input,.field select,.field textarea{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:15px;font-family:inherit;background:#fff;color:var(--text);-webkit-appearance:none}
+.field input,.field select,.field textarea{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:16px;font-family:inherit;background:#fff;color:var(--text);-webkit-appearance:none;appearance:none;line-height:1.3}
 .field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--dark);box-shadow:0 0 0 3px rgba(0,0,0,.06)}
 .field select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23999' d='M6 8L1 3h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:32px}
 .field textarea{resize:vertical;min-height:80px}
+.field input[type="date"],.field input[type="time"]{min-height:42px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .field-readonly input{background:var(--bg2);color:var(--text3)}
 
 /* FOTO GRID */
 .foto-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:4px}
-.foto-slot{aspect-ratio:1;border:2px dashed var(--border2);border-radius:var(--radius-sm);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;background:var(--bg2);overflow:hidden;position:relative;transition:border-color .15s}
+.foto-slot{width:100%;aspect-ratio:1/1;border:2px dashed var(--border2);border-radius:var(--radius-sm);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;background:var(--bg2);overflow:hidden;position:relative;transition:border-color .15s}
 .foto-slot:active{background:var(--bg3)}
 .foto-slot.has-foto{border:2px solid var(--border);border-style:solid}
 .foto-slot img{width:100%;height:100%;object-fit:cover;display:block}
 .foto-slot-label{font-size:10px;color:var(--text3);margin-top:4px;text-align:center;padding:0 4px}
-.foto-delete{position:absolute;top:4px;right:4px;background:rgba(0,0,0,.55);border:none;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:2}
+.foto-delete{position:absolute;top:4px;right:4px;background:rgba(0,0,0,.55);border:none;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:2;-webkit-appearance:none;appearance:none}
 .foto-delete svg{width:12px;height:12px;stroke:#fff;stroke-width:2.5;fill:none}
 .foto-input{position:absolute;width:1px;height:1px;padding:0;margin:0;border:0;overflow:hidden;opacity:0;pointer-events:none}
 .foto-slot-options{display:flex;gap:5px;align-items:center;justify-content:center}
-.foto-opt-btn{display:flex;align-items:center;justify-content:center;width:26px;height:26px;border:1px solid var(--border2);background:#fff;border-radius:6px;cursor:pointer;padding:0;flex-shrink:0}
+.foto-opt-btn{display:flex;align-items:center;justify-content:center;width:26px;height:26px;border:1px solid var(--border2);background:#fff;border-radius:6px;cursor:pointer;padding:0;flex-shrink:0;-webkit-appearance:none;appearance:none}
 .foto-opt-btn:active{background:var(--bg3)}
 .foto-opt-btn svg{width:13px;height:13px;stroke:var(--text2);stroke-width:1.8;fill:none}
 .foto-slot.has-foto .foto-slot-options{position:absolute;bottom:0;left:0;right:0;gap:4px;padding:4px 0;background:linear-gradient(to top,rgba(0,0,0,.55),transparent);z-index:1}
 .foto-slot.has-foto .foto-opt-btn{width:22px;height:22px;border:none;background:rgba(255,255,255,.9)}
 .foto-slot.has-foto .foto-opt-btn svg{stroke:var(--text);width:12px;height:12px}
 
+/* INSPECCIÓN UNIDAD DE CARGA */
+.insp-group-title{font-size:12px;font-weight:700;color:var(--text);margin:14px 0 8px;text-transform:uppercase;letter-spacing:.05em}
+.insp-group-title:first-child{margin-top:0}
+.insp-item{border-top:1px solid var(--border);padding-top:10px;margin-top:10px}
+.insp-item:first-of-type{border-top:none;padding-top:0;margin-top:0}
+.insp-item-text{font-size:13px;color:var(--text);margin-bottom:8px;line-height:1.35}
+
+/* FIRMA */
+.firma-wrap{border:1px dashed var(--border2);border-radius:var(--radius-sm);background:#fff;overflow:hidden}
+.firma-canvas{width:100%;height:160px;display:block;touch-action:none;background:#fff}
+.firma-status{font-size:12px;color:var(--text3);margin-top:8px;text-align:center}
+.firma-status.ok{color:#16a34a;font-weight:600}
+
 /* BUTTONS */
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:12px 16px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:#fff;color:var(--text);font-size:14px;font-weight:500;cursor:pointer;font-family:inherit;transition:background .15s;white-space:nowrap}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:12px 16px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:#fff;color:var(--text);font-size:14px;font-weight:500;cursor:pointer;font-family:inherit;transition:background .15s;white-space:nowrap;-webkit-appearance:none;appearance:none}
 .btn:active{background:var(--bg3)}
 .btn-primary{background:var(--dark);color:var(--yellow);border-color:var(--dark);font-weight:600}
 .btn-primary:active{opacity:.85}
@@ -229,6 +245,86 @@ let currentTab = 'nuevo';
 let fotos = new Array(10).fill(null); // base64 strings
 const LOGO = "logo.png";
 
+// ─── INSPECCIÓN DE LA UNIDAD DE CARGA ─────────────────────
+const INSPECCION_GRUPOS = {
+  general: {
+    titulo: 'Revisión general',
+    items: [
+      'Existe la presencia de adhesivos o pegantes nuevos en las uniones de las láminas',
+      'Se evidencian Marcas o quemaduras recientes de soldadura',
+      'Se evidencia pintura nueva o parches',
+      'Sonido sólido en ondulaciones y láminas',
+      'Se observan grietas o abolladuras',
+      'Existen ondulaciones internas y externas desiguales en tamaño y altura',
+      'Las vigas y travesaños presentan sonidos metálicos disparejos',
+      'Olores a pintura, soldadura, madera quemada, pegante'
+    ]
+  },
+  lados: {
+    titulo: 'Lados / costados',
+    items: [
+      'Hay muestras de adhesivos o pegante frescos de las uniones de las láminas',
+      'Revisar las corrugaciones del contenedor (22 largo x 9 ancho para 20 pies / 43 largo x 9 ancho para 40 pies)'
+    ]
+  },
+  puertas: {
+    titulo: 'Puertas',
+    items: [
+      'Hay adhesivos o pegante fresco o reciente en las uniones de las láminas',
+      'Hay marcas o rastros de soldadura reciente',
+      'Remaches y tuercas de los seguros de las manijas sobre saliente y soldados'
+    ]
+  },
+  pisoTecho: {
+    titulo: 'Piso y techo',
+    items: [
+      'El piso está por encima del nivel de las vigas inferiores',
+      'El techo y/o el piso se encuentran desnivelados',
+      'El número de contenedor es diferente en uno o más de sus 6 lados',
+      'Evidencia remaches y tuercas nuevos',
+      'Evidencia remaches y tuercas de los seguros de las manijas ocultos y soldados de la parte interna',
+      'Las áreas aledañas a remaches o bisagras muestran golpes, pintura nueva o intentos de forcejeo'
+    ]
+  }
+};
+
+const inspItemHTML = (grupo, i, texto) => `
+  <div class="insp-item">
+    <div class="insp-item-text">${texto}</div>
+    <div class="grid2">
+      <div class="field"><label>Inspeccionado</label>
+        <select id="insp-${grupo}-${i}-insp">
+          <option value="">—</option>
+          <option value="SI">SI</option>
+          <option value="NO">NO</option>
+        </select>
+      </div>
+      <div class="field"><label>Apto</label>
+        <select id="insp-${grupo}-${i}-apto">
+          <option value="">—</option>
+          <option value="SI">SI</option>
+          <option value="NO">NO</option>
+        </select>
+      </div>
+    </div>
+    <div class="field"><label>Observaciones</label><input id="insp-${grupo}-${i}-obs" type="text" placeholder="Observaciones (opcional)"></div>
+  </div>`;
+
+const inspGrupoHTML = (grupo) => {
+  const g = INSPECCION_GRUPOS[grupo];
+  return `<div class="insp-group-title">${g.titulo}</div>` +
+    g.items.map((texto,i)=>inspItemHTML(grupo,i,texto)).join('');
+};
+
+function getInspeccionGrupo(grupo){
+  return INSPECCION_GRUPOS[grupo].items.map((texto,i)=>({
+    item: texto,
+    inspeccionado: $(`insp-${grupo}-${i}-insp`)?.value||'',
+    apto: $(`insp-${grupo}-${i}-apto`)?.value||'',
+    observaciones: $(`insp-${grupo}-${i}-obs`)?.value||''
+  }));
+}
+
 // ─── HELPERS ─────────────────────────────────────────────
 const $ = id => document.getElementById(id);
 const today = () => new Date().toISOString().split('T')[0];
@@ -331,6 +427,37 @@ function renderNuevo(){
       </div>
     </div>
 
+    <div class="card">
+      <div class="card-title">Inspección de la unidad de carga</div>
+      ${inspGrupoHTML('general')}
+      ${inspGrupoHTML('lados')}
+      ${inspGrupoHTML('puertas')}
+      ${inspGrupoHTML('pisoTecho')}
+    </div>
+
+    <div class="card">
+      <div class="card-title">Personas que intervienen</div>
+      <div class="field"><label>Nombre de quien realiza la inspección</label><input id="f-insp-nombre" type="text" placeholder="Nombre completo"></div>
+      <div class="field"><label>Nombre del Aux. Logístico</label><input id="f-aux-logistico" type="text" placeholder="Nombre completo"></div>
+      <div class="field"><label>Nombre del Transportador</label><input id="f-transportador" type="text" placeholder="Nombre completo"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Firma del conductor</div>
+      <div class="firma-wrap"><canvas id="firma-canvas" class="firma-canvas"></canvas></div>
+      <div class="btn-row" style="margin-top:10px;margin-bottom:0">
+        <button class="btn" type="button" onclick="limpiarFirma()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.59"/></svg>
+          Limpiar firma
+        </button>
+        <button class="btn btn-primary" type="button" onclick="confirmarFirma()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+          Confirmar firma
+        </button>
+      </div>
+      <div class="firma-status" id="firma-status"></div>
+    </div>
+
     <div class="btn-row">
       <button class="btn" onclick="limpiarFormulario()">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.59"/></svg>
@@ -347,6 +474,7 @@ function renderNuevo(){
     </div>`;
 
   bindFotoEvents();
+  initFirma();
 }
 
 // ─── FOTOS ────────────────────────────────────────────────
@@ -399,6 +527,82 @@ window.deleteFoto = function(e, i){
     <div class="foto-slot-label">Foto ${i+1}</div>` + fotoInputsHTML(i);
 };
 
+// ─── FIRMA DEL CONDUCTOR ───────────────────────────────────
+let firmaCanvas=null, firmaCtx=null, firmaDrawing=false, firmaTieneTrazo=false, firmaConfirmada=false, firmaBase64='';
+
+function initFirma(){
+  firmaCanvas = $('firma-canvas');
+  if(!firmaCanvas) return;
+  const ratio = window.devicePixelRatio || 1;
+  const rect = firmaCanvas.getBoundingClientRect();
+  firmaCanvas.width = rect.width * ratio;
+  firmaCanvas.height = rect.height * ratio;
+  firmaCtx = firmaCanvas.getContext('2d');
+  firmaCtx.scale(ratio, ratio);
+  firmaCtx.lineWidth = 2.2;
+  firmaCtx.lineCap = 'round';
+  firmaCtx.lineJoin = 'round';
+  firmaCtx.strokeStyle = '#1a1a1a';
+  firmaTieneTrazo = false;
+  firmaConfirmada = false;
+  firmaBase64 = '';
+  firmaCanvas.style.pointerEvents = 'auto';
+
+  const posFromEvent = e => {
+    const r = firmaCanvas.getBoundingClientRect();
+    const p = e.touches ? e.touches[0] : e;
+    return { x: p.clientX - r.left, y: p.clientY - r.top };
+  };
+  const start = e => {
+    if(firmaConfirmada) return;
+    e.preventDefault();
+    firmaDrawing = true;
+    const p = posFromEvent(e);
+    firmaCtx.beginPath();
+    firmaCtx.moveTo(p.x, p.y);
+  };
+  const move = e => {
+    if(!firmaDrawing || firmaConfirmada) return;
+    e.preventDefault();
+    const p = posFromEvent(e);
+    firmaCtx.lineTo(p.x, p.y);
+    firmaCtx.stroke();
+    firmaTieneTrazo = true;
+  };
+  const end = () => { firmaDrawing = false; };
+
+  firmaCanvas.addEventListener('mousedown', start);
+  firmaCanvas.addEventListener('mousemove', move);
+  firmaCanvas.addEventListener('mouseup', end);
+  firmaCanvas.addEventListener('mouseleave', end);
+  firmaCanvas.addEventListener('touchstart', start, {passive:false});
+  firmaCanvas.addEventListener('touchmove', move, {passive:false});
+  firmaCanvas.addEventListener('touchend', end);
+}
+
+window.limpiarFirma = function(){
+  if(!firmaCtx) return;
+  firmaCtx.clearRect(0, 0, firmaCanvas.width, firmaCanvas.height);
+  firmaTieneTrazo = false;
+  firmaConfirmada = false;
+  firmaBase64 = '';
+  firmaCanvas.style.pointerEvents = 'auto';
+  const status = $('firma-status');
+  status.textContent = '';
+  status.className = 'firma-status';
+};
+
+window.confirmarFirma = function(){
+  if(!firmaTieneTrazo){ toast('Dibuja la firma antes de confirmar'); return; }
+  firmaBase64 = firmaCanvas.toDataURL('image/png');
+  firmaConfirmada = true;
+  firmaCanvas.style.pointerEvents = 'none';
+  const status = $('firma-status');
+  status.textContent = '✓ Firma confirmada';
+  status.className = 'firma-status ok';
+  toast('Firma confirmada ✓');
+};
+
 // ─── RECOGER DATOS DEL FORMULARIO ─────────────────────────
 function getFormData(){
   return {
@@ -423,6 +627,18 @@ function getFormData(){
     lote: $('f-lote')?.value||'',
     fotografo: $('f-fotografo')?.value||'',
     novedades: $('f-novedades')?.value||'',
+    inspeccion: {
+      general: getInspeccionGrupo('general'),
+      lados: getInspeccionGrupo('lados'),
+      puertas: getInspeccionGrupo('puertas'),
+      pisoTecho: getInspeccionGrupo('pisoTecho')
+    },
+    personas: {
+      inspector: $('f-insp-nombre')?.value||'',
+      auxLogistico: $('f-aux-logistico')?.value||'',
+      transportador: $('f-transportador')?.value||''
+    },
+    firma: firmaBase64,
     fotos: fotos.filter(f=>f!==null)
   };
 }
@@ -433,6 +649,7 @@ window.guardarInforme = function(){
   if(!d.contenedor){ toast('Ingresa el número de contenedor'); return; }
   if(!d.conductor){ toast('Ingresa el nombre del conductor'); return; }
   if(!d.producto){ toast('Ingresa el producto'); return; }
+  if(!d.firma){ toast('Confirma la firma del conductor'); return; }
 
   const fotosCapturadas = d.fotos ? d.fotos.filter(function(f){ return f !== null; }) : [];
 
@@ -615,6 +832,86 @@ function _renderPreview(d){
            '</div>';
   }
 
+  // ── Página 3: inspección de la unidad de carga + firma ───
+  let pag3 = '';
+  if(d.inspeccion){
+    const inspRow = (item, insp, apto, obs) =>
+      '<tr>' +
+        '<td style="padding:4px 6px;border-bottom:1px solid #f0f0ee;font-size:9px;width:52%">' + item + '</td>' +
+        '<td style="padding:4px 6px;border-bottom:1px solid #f0f0ee;font-size:9px;text-align:center;width:12%">' + (insp||'—') + '</td>' +
+        '<td style="padding:4px 6px;border-bottom:1px solid #f0f0ee;font-size:9px;text-align:center;width:12%">' + (apto||'—') + '</td>' +
+        '<td style="padding:4px 6px;border-bottom:1px solid #f0f0ee;font-size:9px;width:24%">' + (obs||'—') + '</td>' +
+      '</tr>';
+
+    const grupoHeader = (titulo) =>
+      '<tr><td colspan="4" style="padding:4px 6px;background:#1a1a1a;color:#f5c200;font-weight:700;font-size:9.5px;text-transform:uppercase">' + titulo + '</td></tr>';
+
+    const grupoRows = (clave) => {
+      const g = INSPECCION_GRUPOS[clave];
+      const items = d.inspeccion[clave] || [];
+      return grupoHeader(g.titulo) +
+        g.items.map(function(texto, i){
+          const it = items[i] || {};
+          return inspRow(texto, it.inspeccionado, it.apto, it.observaciones);
+        }).join('');
+    };
+
+    const tablaInspeccion =
+      '<table style="width:100%;border-collapse:collapse;border:1px solid #e0e0dd;margin-bottom:8px">' +
+        '<thead><tr style="background:#f0f0ee">' +
+          '<td style="padding:4px 6px;font-size:9px;font-weight:700">Ítem</td>' +
+          '<td style="padding:4px 6px;font-size:9px;font-weight:700;text-align:center">Inspeccionado</td>' +
+          '<td style="padding:4px 6px;font-size:9px;font-weight:700;text-align:center">Apto</td>' +
+          '<td style="padding:4px 6px;font-size:9px;font-weight:700">Observaciones</td>' +
+        '</tr></thead>' +
+        '<tbody>' +
+          grupoRows('general') +
+          grupoRows('lados') +
+          grupoRows('puertas') +
+          grupoRows('pisoTecho') +
+        '</tbody>' +
+      '</table>';
+
+    const personas = d.personas || {};
+    const tablaPersonas =
+      '<table style="width:100%;border-collapse:collapse;border:1px solid #e0e0dd;margin-bottom:8px">' +
+        '<tbody>' +
+          row('Persona que realiza la inspección', personas.inspector) +
+          row('Aux. Logístico', personas.auxLogistico) +
+          row('Transportador', personas.transportador) +
+        '</tbody>' +
+      '</table>';
+
+    const firmaHTML = d.firma
+      ? '<div style="margin-top:6px">' +
+          '<div style="font-size:9px;font-weight:700;text-transform:uppercase;color:#555;margin-bottom:4px">Firma del conductor</div>' +
+          '<img src="' + d.firma + '" alt="Firma del conductor" style="max-width:240px;width:100%;border:1px solid #e0e0dd;border-radius:4px;background:#fff;display:block">' +
+        '</div>'
+      : '';
+
+    pag3 =
+      '<div style="font-family:Arial,sans-serif;color:#1a1a1a;width:100%">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #1a1a1a;padding-bottom:6px;margin-bottom:12px">' +
+          '<img src="logo.png" alt="Alianza del Pacifico" style="height:32px;width:auto;display:block">' +
+          '<div style="text-align:right;font-size:9px;color:#666">' +
+            'INF-' + d.num + ' · ' + (d.fecha||'') + ' · Contenedor: ' + (d.contenedor||'') +
+          '</div>' +
+        '</div>' +
+        '<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#555;letter-spacing:.06em;margin-bottom:8px">' +
+          'Inspección de la unidad de carga' +
+        '</div>' +
+        tablaInspeccion +
+        '<div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#555;letter-spacing:.06em;margin:10px 0 6px">' +
+          'Personas que intervienen' +
+        '</div>' +
+        tablaPersonas +
+        firmaHTML +
+        '<div style="border-top:1px solid #e0e0dd;margin-top:12px;padding-top:5px;font-size:9px;color:#999;text-align:center">' +
+          'Alianza del Pacífico S.A.S. · Corregimiento Puerto Caldas – Paraje La Marina – Planta ALEN+PRO · Pereira – Risaralda' +
+        '</div>' +
+      '</div>';
+  }
+
   // Contenedor completo con separador de páginas visual
   const html =
     '<div id="doc-cuerpo">' +
@@ -624,6 +921,10 @@ function _renderPreview(d){
       (pag2 ? '<div class="separador-pagina">— Página 2: Registro fotográfico —</div>' : '') +
       // Página 2
       (pag2 ? '<div class="pagina pagina2">' + pag2 + '</div>' : '') +
+      // Separador visual en pantalla (no se imprime)
+      (pag3 ? '<div class="separador-pagina">— Página 3: Inspección de la unidad de carga —</div>' : '') +
+      // Página 3
+      (pag3 ? '<div class="pagina pagina3">' + pag3 + '</div>' : '') +
     '</div>';
 
   document.getElementById('preview-content').innerHTML = html;
