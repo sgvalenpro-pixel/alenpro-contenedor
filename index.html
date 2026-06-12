@@ -56,10 +56,16 @@ html,body{height:100%;background:var(--bg2);font-family:-apple-system,BlinkMacSy
 .foto-slot.has-foto{border:2px solid var(--border);border-style:solid}
 .foto-slot img{width:100%;height:100%;object-fit:cover;display:block}
 .foto-slot-label{font-size:10px;color:var(--text3);margin-top:4px;text-align:center;padding:0 4px}
-.foto-slot svg{width:24px;height:24px;stroke:var(--text3);fill:none;stroke-width:1.5}
 .foto-delete{position:absolute;top:4px;right:4px;background:rgba(0,0,0,.55);border:none;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:2}
 .foto-delete svg{width:12px;height:12px;stroke:#fff;stroke-width:2.5;fill:none}
 .foto-input{display:none}
+.foto-slot-options{display:flex;gap:5px;align-items:center;justify-content:center}
+.foto-opt-btn{display:flex;align-items:center;justify-content:center;width:26px;height:26px;border:1px solid var(--border2);background:#fff;border-radius:6px;cursor:pointer;padding:0;flex-shrink:0}
+.foto-opt-btn:active{background:var(--bg3)}
+.foto-opt-btn svg{width:13px;height:13px;stroke:var(--text2);stroke-width:1.8;fill:none}
+.foto-slot.has-foto .foto-slot-options{position:absolute;bottom:0;left:0;right:0;gap:4px;padding:4px 0;background:linear-gradient(to top,rgba(0,0,0,.55),transparent);z-index:1}
+.foto-slot.has-foto .foto-opt-btn{width:22px;height:22px;border:none;background:rgba(255,255,255,.9)}
+.foto-slot.has-foto .foto-opt-btn svg{stroke:var(--text);width:12px;height:12px}
 
 /* BUTTONS */
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:12px 16px;border-radius:var(--radius-sm);border:1px solid var(--border2);background:#fff;color:var(--text);font-size:14px;font-weight:500;cursor:pointer;font-family:inherit;transition:background .15s;white-space:nowrap}
@@ -319,10 +325,8 @@ function renderNuevo(){
       <div class="card-title">Registro fotográfico (mín. 1 · máx. 10 fotos)</div>
       <div class="foto-grid" id="foto-grid">
         ${[0,1,2,3,4,5,6,7,8,9].map(i=>`
-          <div class="foto-slot" id="slot-${i}" onclick="triggerFoto(${i})">
-            <svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-            <div class="foto-slot-label">Foto ${i+1}</div>
-            <input class="foto-input" type="file" accept="image/*" capture="environment" id="foto-input-${i}" onchange="onFotoChange(${i}, this)">
+          <div class="foto-slot" id="slot-${i}">` + fotoOptionsHTML(i) + `
+            <div class="foto-slot-label">Foto ${i+1}</div>` + fotoInputsHTML(i) + `
           </div>`).join('')}
       </div>
     </div>
@@ -346,8 +350,23 @@ function renderNuevo(){
 }
 
 // ─── FOTOS ────────────────────────────────────────────────
-window.triggerFoto = function(i){
-  $('foto-input-'+i).click();
+const fotoOptionsHTML = (i) => `
+    <div class="foto-slot-options">
+      <button type="button" class="foto-opt-btn" onclick="triggerFoto(${i},'camera')" title="Tomar foto">
+        <svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+      </button>
+      <button type="button" class="foto-opt-btn" onclick="triggerFoto(${i},'gallery')" title="Elegir de galería">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+      </button>
+    </div>`;
+
+const fotoInputsHTML = (i) => `
+    <input class="foto-input" type="file" accept="image/*" capture="environment" id="foto-input-cam-${i}" onchange="onFotoChange(${i}, this)">
+    <input class="foto-input" type="file" accept="image/*" id="foto-input-gal-${i}" onchange="onFotoChange(${i}, this)">`;
+
+window.triggerFoto = function(i, type){
+  const id = type === 'gallery' ? 'foto-input-gal-' : 'foto-input-cam-';
+  $(id+i).click();
 };
 
 function bindFotoEvents(){
@@ -366,8 +385,7 @@ window.onFotoChange = function(i, input){
       <img src="${e.target.result}" alt="Foto ${i+1}">
       <button class="foto-delete" onclick="deleteFoto(event,${i})">
         <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      </button>
-      <input class="foto-input" type="file" accept="image/*" capture="environment" id="foto-input-${i}" onchange="onFotoChange(${i}, this)">`;
+      </button>` + fotoOptionsHTML(i) + fotoInputsHTML(i);
   };
   reader.readAsDataURL(file);
 };
@@ -377,10 +395,8 @@ window.deleteFoto = function(e, i){
   fotos[i] = null;
   const slot = $('slot-'+i);
   slot.classList.remove('has-foto');
-  slot.innerHTML = `
-    <svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-    <div class="foto-slot-label">Foto ${i+1}</div>
-    <input class="foto-input" type="file" accept="image/*" capture="environment" id="foto-input-${i}" onchange="onFotoChange(${i}, this)">`;
+  slot.innerHTML = fotoOptionsHTML(i) + `
+    <div class="foto-slot-label">Foto ${i+1}</div>` + fotoInputsHTML(i);
 };
 
 // ─── RECOGER DATOS DEL FORMULARIO ─────────────────────────
