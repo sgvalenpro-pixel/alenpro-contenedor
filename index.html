@@ -226,6 +226,7 @@ html,body{height:100%;background:var(--bg2);font-family:-apple-system,BlinkMacSy
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getDatabase, ref, set, push, onValue, get, update, remove } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { getStorage, ref as storageRef, uploadString, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyB7KbW_QX-ymuRxwNh9byx6hICLEUcRpKE",
@@ -239,6 +240,7 @@ const firebaseConfig = {
 
 const fireApp = initializeApp(firebaseConfig, "contenedor-app");
 const db = getDatabase(fireApp);
+const storage = getStorage(fireApp);
 
 let informes = {};
 let currentTab = 'nuevo';
@@ -661,21 +663,19 @@ window.guardarInforme = function(){
   push(ref(db,'contenedor_informes'), paraFirebase).then(function(newRef){
     const fbKey = newRef.key;
 
-    // Guardar fotos en nodo separado: contenedor_fotos/{fbKey}
-    const guardarFotos = fotosCapturadas.length > 0
-      ? set(ref(db,'contenedor_fotos/' + fbKey), fotosCapturadas)
-      : Promise.resolve();
-
-    guardarFotos.then(function(){
+    // Subir fotos a Firebase Storage y guardar sus URLs en contenedor_fotos/{fbKey}
+    subirFotos(fbKey, fotosCapturadas).then(function(urls){
+      return set(ref(db,'contenedor_fotos/' + fbKey), urls).then(function(){ return urls; });
+    }).then(function(urls){
       toast('Informe ' + d.contenedor + ' guardado ✓');
       d.fbKey = fbKey;
-      d.fotos = fotosCapturadas;
+      d.fotos = urls;
       abrirPreview(d);
       fotos = new Array(10).fill(null);
       setTimeout(function(){ renderNuevo(); }, 400);
     }).catch(function(err){
-      // Si falla guardar fotos, igual mostrar preview con fotos en memoria
-      toast('Informe guardado (fotos solo en esta sesión)');
+      // Si falla subir/guardar fotos, igual mostrar preview con fotos en memoria
+      toast('Informe guardado (error al subir fotos: ' + err.message + ')');
       d.fbKey = fbKey;
       d.fotos = fotosCapturadas;
       abrirPreview(d);
@@ -684,6 +684,30 @@ window.guardarInforme = function(){
     });
   }).catch(function(err){ toast('Error: ' + err.message); });
 };
+
+// ─── SUBIR FOTOS A FIREBASE STORAGE ───────────────────────
+function subirFotos(fbKey, fotosBase64){
+  const total = fotosBase64.length;
+  if(!total) return Promise.resolve([]);
+
+  let completadas = 0;
+  toast('Subiendo fotos 0/' + total + '...', 60000);
+
+  const uploads = fotosBase64.map(function(base64, i){
+    const fotoRef = storageRef(storage, 'contenedor_fotos/' + fbKey + '/foto_' + i + '.jpg');
+    return uploadString(fotoRef, base64, 'data_url')
+      .then(function(){ return getDownloadURL(fotoRef); })
+      .then(function(url){
+        completadas++;
+        toast('Subiendo fotos ' + completadas + '/' + total + '...', 60000);
+        return {index: i, url: url};
+      });
+  });
+
+  return Promise.all(uploads).then(function(results){
+    return results.sort(function(a,b){ return a.index - b.index; }).map(function(r){ return r.url; });
+  });
+}
 
 // ─── ABRIR PREVIEW (unificado para nuevo e histórico) ────────
 function abrirPreview(d){
