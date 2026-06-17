@@ -728,6 +728,57 @@ function eliminarTodasFotosStorage(){
   }).catch(function(){});
 }
 
+// ─── MIGRACIÓN: FOTOS BASE64 -> FIREBASE STORAGE ──────────
+function migrarFotosBase64aStorage(){
+  const esBase64 = function(f){ return typeof f === 'string' && f.indexOf('data:image') === 0; };
+  const aArray = function(v){ return Array.isArray(v) ? v : (v ? Object.values(v) : []); };
+
+  Promise.all([
+    get(ref(db,'contenedor_informes')),
+    get(ref(db,'contenedor_fotos'))
+  ]).then(function(snaps){
+    const infs = snaps[0].val() || {};
+    const fotosDb = snaps[1].val() || {};
+    const pendientes = [];
+
+    Object.keys(infs).forEach(function(fbKey){
+      const arrInforme = aArray(infs[fbKey] && infs[fbKey].fotos);
+      const arrNodo = aArray(fotosDb[fbKey]);
+      const tieneBase64Informe = arrInforme.some(esBase64);
+      const tieneBase64Nodo = arrNodo.some(esBase64);
+
+      if(tieneBase64Informe || tieneBase64Nodo){
+        pendientes.push({
+          fbKey: fbKey,
+          fotos: tieneBase64Informe ? arrInforme : arrNodo,
+          limpiarInforme: tieneBase64Informe
+        });
+      }
+    });
+
+    if(!pendientes.length) return;
+
+    toast('Actualizando fotos a la nube...', 60000);
+
+    return pendientes.reduce(function(prev, item){
+      return prev.then(function(){
+        const uploads = item.fotos.map(function(f, i){
+          if(!esBase64(f)) return Promise.resolve(f);
+          const fotoRef = storageRef(storage, 'contenedor_fotos/' + item.fbKey + '/foto_' + i + '.jpg');
+          return uploadString(fotoRef, f, 'data_url').then(function(){ return getDownloadURL(fotoRef); });
+        });
+        return Promise.all(uploads).then(function(urls){
+          const tareas = [set(ref(db,'contenedor_fotos/' + item.fbKey), urls)];
+          if(item.limpiarInforme) tareas.push(update(ref(db,'contenedor_informes/' + item.fbKey), {fotos: null}));
+          return Promise.all(tareas);
+        }).catch(function(){});
+      });
+    }, Promise.resolve()).then(function(){
+      toast('Fotos actualizadas ✓');
+    });
+  }).catch(function(){});
+}
+
 // ─── ABRIR PREVIEW (unificado para nuevo e histórico) ────────
 function abrirPreview(d){
   if(!d.fotos) d.fotos = [];
@@ -1121,6 +1172,7 @@ window.eliminarTodo = function(){
 
 // ─── INIT ─────────────────────────────────────────────────
 renderNuevo();
+migrarFotosBase64aStorage();
 </script>
 </body>
 </html>
