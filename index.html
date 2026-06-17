@@ -226,7 +226,7 @@ html,body{height:100%;background:var(--bg2);font-family:-apple-system,BlinkMacSy
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getDatabase, ref, set, push, onValue, get, update, remove } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
-import { getStorage, ref as storageRef, uploadString, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
+import { getStorage, ref as storageRef, uploadString, getDownloadURL, deleteObject, listAll } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyB7KbW_QX-ymuRxwNh9byx6hICLEUcRpKE",
@@ -709,6 +709,25 @@ function subirFotos(fbKey, fotosBase64){
   });
 }
 
+// ─── ELIMINAR FOTOS DE FIREBASE STORAGE ───────────────────
+function eliminarFotosStorage(fbKey){
+  const carpeta = storageRef(storage, 'contenedor_fotos/' + fbKey);
+  return listAll(carpeta).then(function(res){
+    return Promise.all(res.items.map(function(item){ return deleteObject(item).catch(function(){}); }));
+  }).catch(function(){});
+}
+
+function eliminarTodasFotosStorage(){
+  const carpeta = storageRef(storage, 'contenedor_fotos');
+  return listAll(carpeta).then(function(res){
+    return Promise.all(res.prefixes.map(function(prefix){
+      return listAll(prefix).then(function(sub){
+        return Promise.all(sub.items.map(function(item){ return deleteObject(item).catch(function(){}); }));
+      });
+    }));
+  }).catch(function(){});
+}
+
 // ─── ABRIR PREVIEW (unificado para nuevo e histórico) ────────
 function abrirPreview(d){
   if(!d.fotos) d.fotos = [];
@@ -1076,10 +1095,11 @@ function renderInformes(filter){
 // ─── ELIMINAR INFORME ─────────────────────────────────────
 window.eliminarInforme = function(key, contenedor){
   if(!confirm('¿Eliminar el informe del contenedor ' + contenedor + '? Esta acción no se puede deshacer.')) return;
-  // Borrar datos e imágenes en Firebase
+  // Borrar datos, referencias y fotos en Firebase Storage
   Promise.all([
     remove(ref(db,'contenedor_informes/'+key)),
-    remove(ref(db,'contenedor_fotos/'+key))
+    remove(ref(db,'contenedor_fotos/'+key)),
+    eliminarFotosStorage(key)
   ]).then(function(){
     toast('Informe eliminado');
   }).catch(function(err){ toast('Error: '+err.message); });
@@ -1092,7 +1112,8 @@ window.eliminarTodo = function(){
   if(!confirm('¿Borrar TODOS los ' + total + ' informes? Esta acción no se puede deshacer.')) return;
   Promise.all([
     set(ref(db,'contenedor_informes'), null),
-    set(ref(db,'contenedor_fotos'), null)
+    set(ref(db,'contenedor_fotos'), null),
+    eliminarTodasFotosStorage()
   ]).then(function(){
     toast('Todos los informes eliminados');
   }).catch(function(err){ toast('Error: '+err.message); });
