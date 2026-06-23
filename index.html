@@ -674,8 +674,11 @@ window.guardarInforme = function(){
       fotos = new Array(10).fill(null);
       setTimeout(function(){ renderNuevo(); }, 400);
     }).catch(function(err){
-      // Si falla subir/guardar fotos, igual mostrar preview con fotos en memoria
-      toast('Informe guardado (error al subir fotos: ' + err.message + ')');
+      // Si falla subir/guardar fotos: dejarlas en base64 dentro del propio informe
+      // para que migrarFotosBase64aStorage() las reintente subir automáticamente
+      // la próxima vez que se abra la app (en este dispositivo o cualquier otro).
+      update(ref(db,'contenedor_informes/' + fbKey), {fotos: fotosCapturadas}).catch(function(){});
+      toast('⚠ Informe guardado, pero las fotos no se subieron (' + err.message + '). Se reintentará automáticamente.', 6000);
       d.fbKey = fbKey;
       d.fotos = fotosCapturadas;
       abrirPreview(d);
@@ -1055,8 +1058,11 @@ window.previsualizarInforme = function(data){
 window.verInforme = function(key){
   const h = informes[key];
   if(!h) return;
-  const d = Object.assign({}, h, {fbKey: key, fotos: []});
-  abrirPreview(d); // carga fotos desde Firebase automáticamente
+  // Si el informe quedó con fotos en base64 pendientes de subir (fallo previo de Storage),
+  // mostrarlas como respaldo inmediato; si no, abrirPreview las carga desde contenedor_fotos.
+  const fotosPendientes = h.fotos ? (Array.isArray(h.fotos) ? h.fotos : Object.values(h.fotos)) : [];
+  const d = Object.assign({}, h, {fbKey: key, fotos: fotosPendientes});
+  abrirPreview(d);
 };
 
 // ─── IMPRIMIR PDF ─────────────────────────────────────────
