@@ -242,6 +242,21 @@ const fireApp = initializeApp(firebaseConfig, "contenedor-app");
 const db = getDatabase(fireApp);
 const storage = getStorage(fireApp);
 
+/*
+ * REGLAS DE FIREBASE STORAGE REQUERIDAS — sin estas reglas las fotos no se suben:
+ *
+ * rules_version = '2';
+ * service firebase.storage {
+ *   match /b/{bucket}/o {
+ *     match /{allPaths=**} {
+ *       allow read, write: if true;
+ *     }
+ *   }
+ * }
+ *
+ * Configurar en: Firebase Console → Storage → Rules
+ */
+
 let informes = {};
 let currentTab = 'nuevo';
 let fotos = new Array(10).fill(null); // base64 strings
@@ -674,13 +689,10 @@ window.guardarInforme = function(){
       fotos = new Array(10).fill(null);
       setTimeout(function(){ renderNuevo(); }, 400);
     }).catch(function(err){
-      // Si falla subir/guardar fotos: dejarlas en base64 dentro del propio informe
-      // para que migrarFotosBase64aStorage() las reintente subir automáticamente
-      // la próxima vez que se abra la app (en este dispositivo o cualquier otro).
-      update(ref(db,'contenedor_informes/' + fbKey), {fotos: fotosCapturadas}).catch(function(){});
-      toast('⚠ Informe guardado, pero las fotos no se subieron (' + err.message + '). Se reintentará automáticamente.', 6000);
+      // Storage falló — las fotos NO se guardaron. Verifica las reglas de Firebase Storage.
+      toast('⚠ Informe guardado SIN FOTOS. Error: ' + err.message + ' — Verifica las reglas de Firebase Storage (ver comentario en el código).', 10000);
       d.fbKey = fbKey;
-      d.fotos = fotosCapturadas;
+      d.fotos = [];
       abrirPreview(d);
       fotos = new Array(10).fill(null);
       setTimeout(function(){ renderNuevo(); }, 400);
@@ -694,7 +706,7 @@ function subirFotos(fbKey, fotosBase64){
   if(!total) return Promise.resolve([]);
 
   let completadas = 0;
-  toast('Subiendo fotos 0/' + total + '...', 60000);
+  toast('Subiendo foto 1 de ' + total + '...', 60000);
 
   const uploads = fotosBase64.map(function(base64, i){
     const fotoRef = storageRef(storage, 'contenedor_fotos/' + fbKey + '/foto_' + i + '.jpg');
@@ -702,7 +714,7 @@ function subirFotos(fbKey, fotosBase64){
       .then(function(){ return getDownloadURL(fotoRef); })
       .then(function(url){
         completadas++;
-        toast('Subiendo fotos ' + completadas + '/' + total + '...', 60000);
+        toast('Subiendo foto ' + completadas + ' de ' + total + '...', 60000);
         return {index: i, url: url};
       });
   });
@@ -924,8 +936,9 @@ function _renderPreview(d){
         '</div>' +
       '</div>';
   } else if(d.fotosCount > 0){
-    pag2 = '<div style="font-family:Arial,sans-serif;font-size:10px;color:#999;padding:20px;text-align:center">' +
-             '📷 ' + d.fotosCount + ' foto(s) registradas — disponibles en el dispositivo original.' +
+    pag2 = '<div style="font-family:Arial,sans-serif;font-size:10px;color:#dc2626;padding:20px;text-align:center">' +
+             '⚠ ' + d.fotosCount + ' foto(s) registradas pero no se pudieron cargar desde Firebase Storage. ' +
+             'Verifica que las reglas de Storage permitan lectura pública.' +
            '</div>';
   }
 
@@ -1058,10 +1071,9 @@ window.previsualizarInforme = function(data){
 window.verInforme = function(key){
   const h = informes[key];
   if(!h) return;
-  // Si el informe quedó con fotos en base64 pendientes de subir (fallo previo de Storage),
-  // mostrarlas como respaldo inmediato; si no, abrirPreview las carga desde contenedor_fotos.
-  const fotosPendientes = h.fotos ? (Array.isArray(h.fotos) ? h.fotos : Object.values(h.fotos)) : [];
-  const d = Object.assign({}, h, {fbKey: key, fotos: fotosPendientes});
+  // Siempre cargar fotos desde contenedor_fotos/{key} (URLs de Firebase Storage).
+  // Esto garantiza acceso desde cualquier dispositivo.
+  const d = Object.assign({}, h, {fbKey: key, fotos: []});
   abrirPreview(d);
 };
 
