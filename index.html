@@ -226,7 +226,6 @@ html,body{height:100%;background:var(--bg2);font-family:-apple-system,BlinkMacSy
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getDatabase, ref, set, push, onValue, get, update, remove } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
-import { getStorage, ref as storageRef, uploadString, getDownloadURL, deleteObject, listAll } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyB7KbW_QX-ymuRxwNh9byx6hICLEUcRpKE",
@@ -240,22 +239,6 @@ const firebaseConfig = {
 
 const fireApp = initializeApp(firebaseConfig, "contenedor-app");
 const db = getDatabase(fireApp);
-const storage = getStorage(fireApp);
-
-/*
- * REGLAS DE FIREBASE STORAGE REQUERIDAS — sin estas reglas las fotos no se suben:
- *
- * rules_version = '2';
- * service firebase.storage {
- *   match /b/{bucket}/o {
- *     match /{allPaths=**} {
- *       allow read, write: if true;
- *     }
- *   }
- * }
- *
- * Configurar en: Firebase Console → Storage → Rules
- */
 
 let informes = {};
 let currentTab = 'nuevo';
@@ -660,6 +643,53 @@ function getFormData(){
   };
 }
 
+// ─── COMPRIMIR FOTO CON CANVAS ────────────────────────────
+function comprimirFoto(base64){
+  return new Promise(function(resolve, reject){
+    const img = new Image();
+    img.onload = function(){
+      const MAX = 800;
+      let w = img.width, h = img.height;
+      if(w > MAX || h > MAX){
+        if(w >= h){ h = Math.round(h * MAX / w); w = MAX; }
+        else { w = Math.round(w * MAX / h); h = MAX; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/jpeg', 0.5));
+    };
+    img.onerror = reject;
+    img.src = base64;
+  });
+}
+
+// ─── PROCESAR Y GUARDAR FOTOS EN REALTIME DATABASE ────────
+function procesarYGuardarFotos(fbKey, fotosBase64){
+  const total = fotosBase64.length;
+  if(!total) return Promise.resolve([]);
+
+  let procesadas = 0;
+  toast('Procesando foto 1 de ' + total + '...', 60000);
+
+  return fotosBase64.reduce(function(promesa, base64){
+    return promesa.then(function(acum){
+      return comprimirFoto(base64).then(function(comprimida){
+        procesadas++;
+        if(procesadas < total) toast('Procesando foto ' + (procesadas + 1) + ' de ' + total + '...', 60000);
+        else toast('Guardando fotos...', 60000);
+        acum.push(comprimida);
+        return acum;
+      });
+    });
+  }, Promise.resolve([])).then(function(fotosComprimidas){
+    return set(ref(db,'contenedor_fotos/' + fbKey), fotosComprimidas).then(function(){
+      return fotosComprimidas;
+    });
+  });
+}
+
 // ─── GUARDAR ──────────────────────────────────────────────
 window.guardarInforme = function(){
   const d = getFormData();
@@ -670,27 +700,22 @@ window.guardarInforme = function(){
 
   const fotosCapturadas = d.fotos ? d.fotos.filter(function(f){ return f !== null; }) : [];
 
-  // Guardar datos principales en Firebase (sin fotos)
-  const paraFirebase = {...d};
+  // Guardar datos principales en Realtime Database (sin fotos — se guardan aparte comprimidas)
+  const paraFirebase = Object.assign({}, d);
   paraFirebase.fotosCount = fotosCapturadas.length;
   delete paraFirebase.fotos;
 
   push(ref(db,'contenedor_informes'), paraFirebase).then(function(newRef){
     const fbKey = newRef.key;
-
-    // Subir fotos a Firebase Storage y guardar sus URLs en contenedor_fotos/{fbKey}
-    subirFotos(fbKey, fotosCapturadas).then(function(urls){
-      return set(ref(db,'contenedor_fotos/' + fbKey), urls).then(function(){ return urls; });
-    }).then(function(urls){
+    procesarYGuardarFotos(fbKey, fotosCapturadas).then(function(fotosComprimidas){
       toast('Informe ' + d.contenedor + ' guardado ✓');
       d.fbKey = fbKey;
-      d.fotos = urls;
+      d.fotos = fotosComprimidas;
       abrirPreview(d);
       fotos = new Array(10).fill(null);
       setTimeout(function(){ renderNuevo(); }, 400);
     }).catch(function(err){
-      // Storage falló — las fotos NO se guardaron. Verifica las reglas de Firebase Storage.
-      toast('⚠ Informe guardado SIN FOTOS. Error: ' + err.message + ' — Verifica las reglas de Firebase Storage (ver comentario en el código).', 10000);
+      toast('⚠ Informe guardado SIN FOTOS. Error: ' + err.message, 6000);
       d.fbKey = fbKey;
       d.fotos = [];
       abrirPreview(d);
@@ -699,100 +724,6 @@ window.guardarInforme = function(){
     });
   }).catch(function(err){ toast('Error: ' + err.message); });
 };
-
-// ─── SUBIR FOTOS A FIREBASE STORAGE ───────────────────────
-function subirFotos(fbKey, fotosBase64){
-  const total = fotosBase64.length;
-  if(!total) return Promise.resolve([]);
-
-  let completadas = 0;
-  toast('Subiendo foto 1 de ' + total + '...', 60000);
-
-  const uploads = fotosBase64.map(function(base64, i){
-    const fotoRef = storageRef(storage, 'contenedor_fotos/' + fbKey + '/foto_' + i + '.jpg');
-    return uploadString(fotoRef, base64, 'data_url')
-      .then(function(){ return getDownloadURL(fotoRef); })
-      .then(function(url){
-        completadas++;
-        toast('Subiendo foto ' + completadas + ' de ' + total + '...', 60000);
-        return {index: i, url: url};
-      });
-  });
-
-  return Promise.all(uploads).then(function(results){
-    return results.sort(function(a,b){ return a.index - b.index; }).map(function(r){ return r.url; });
-  });
-}
-
-// ─── ELIMINAR FOTOS DE FIREBASE STORAGE ───────────────────
-function eliminarFotosStorage(fbKey){
-  const carpeta = storageRef(storage, 'contenedor_fotos/' + fbKey);
-  return listAll(carpeta).then(function(res){
-    return Promise.all(res.items.map(function(item){ return deleteObject(item).catch(function(){}); }));
-  }).catch(function(){});
-}
-
-function eliminarTodasFotosStorage(){
-  const carpeta = storageRef(storage, 'contenedor_fotos');
-  return listAll(carpeta).then(function(res){
-    return Promise.all(res.prefixes.map(function(prefix){
-      return listAll(prefix).then(function(sub){
-        return Promise.all(sub.items.map(function(item){ return deleteObject(item).catch(function(){}); }));
-      });
-    }));
-  }).catch(function(){});
-}
-
-// ─── MIGRACIÓN: FOTOS BASE64 -> FIREBASE STORAGE ──────────
-function migrarFotosBase64aStorage(){
-  const esBase64 = function(f){ return typeof f === 'string' && f.indexOf('data:image') === 0; };
-  const aArray = function(v){ return Array.isArray(v) ? v : (v ? Object.values(v) : []); };
-
-  Promise.all([
-    get(ref(db,'contenedor_informes')),
-    get(ref(db,'contenedor_fotos'))
-  ]).then(function(snaps){
-    const infs = snaps[0].val() || {};
-    const fotosDb = snaps[1].val() || {};
-    const pendientes = [];
-
-    Object.keys(infs).forEach(function(fbKey){
-      const arrInforme = aArray(infs[fbKey] && infs[fbKey].fotos);
-      const arrNodo = aArray(fotosDb[fbKey]);
-      const tieneBase64Informe = arrInforme.some(esBase64);
-      const tieneBase64Nodo = arrNodo.some(esBase64);
-
-      if(tieneBase64Informe || tieneBase64Nodo){
-        pendientes.push({
-          fbKey: fbKey,
-          fotos: tieneBase64Informe ? arrInforme : arrNodo,
-          limpiarInforme: tieneBase64Informe
-        });
-      }
-    });
-
-    if(!pendientes.length) return;
-
-    toast('Actualizando fotos a la nube...', 60000);
-
-    return pendientes.reduce(function(prev, item){
-      return prev.then(function(){
-        const uploads = item.fotos.map(function(f, i){
-          if(!esBase64(f)) return Promise.resolve(f);
-          const fotoRef = storageRef(storage, 'contenedor_fotos/' + item.fbKey + '/foto_' + i + '.jpg');
-          return uploadString(fotoRef, f, 'data_url').then(function(){ return getDownloadURL(fotoRef); });
-        });
-        return Promise.all(uploads).then(function(urls){
-          const tareas = [set(ref(db,'contenedor_fotos/' + item.fbKey), urls)];
-          if(item.limpiarInforme) tareas.push(update(ref(db,'contenedor_informes/' + item.fbKey), {fotos: null}));
-          return Promise.all(tareas);
-        }).catch(function(){});
-      });
-    }, Promise.resolve()).then(function(){
-      toast('Fotos actualizadas ✓');
-    });
-  }).catch(function(){});
-}
 
 // ─── ABRIR PREVIEW (unificado para nuevo e histórico) ────────
 function abrirPreview(d){
@@ -936,9 +867,8 @@ function _renderPreview(d){
         '</div>' +
       '</div>';
   } else if(d.fotosCount > 0){
-    pag2 = '<div style="font-family:Arial,sans-serif;font-size:10px;color:#dc2626;padding:20px;text-align:center">' +
-             '⚠ ' + d.fotosCount + ' foto(s) registradas pero no se pudieron cargar desde Firebase Storage. ' +
-             'Verifica que las reglas de Storage permitan lectura pública.' +
+    pag2 = '<div style="font-family:Arial,sans-serif;font-size:10px;color:#999;padding:20px;text-align:center">' +
+             '📷 ' + d.fotosCount + ' foto(s) registradas.' +
            '</div>';
   }
 
@@ -1071,8 +1001,8 @@ window.previsualizarInforme = function(data){
 window.verInforme = function(key){
   const h = informes[key];
   if(!h) return;
-  // Siempre cargar fotos desde contenedor_fotos/{key} (URLs de Firebase Storage).
-  // Esto garantiza acceso desde cualquier dispositivo.
+  // Siempre cargar fotos comprimidas desde contenedor_fotos/{key} en Realtime Database.
+  // El base64 comprimido funciona como src de <img> desde cualquier dispositivo.
   const d = Object.assign({}, h, {fbKey: key, fotos: []});
   abrirPreview(d);
 };
@@ -1164,11 +1094,9 @@ function renderInformes(filter){
 // ─── ELIMINAR INFORME ─────────────────────────────────────
 window.eliminarInforme = function(key, contenedor){
   if(!confirm('¿Eliminar el informe del contenedor ' + contenedor + '? Esta acción no se puede deshacer.')) return;
-  // Borrar datos, referencias y fotos en Firebase Storage
   Promise.all([
     remove(ref(db,'contenedor_informes/'+key)),
-    remove(ref(db,'contenedor_fotos/'+key)),
-    eliminarFotosStorage(key)
+    remove(ref(db,'contenedor_fotos/'+key))
   ]).then(function(){
     toast('Informe eliminado');
   }).catch(function(err){ toast('Error: '+err.message); });
@@ -1181,8 +1109,7 @@ window.eliminarTodo = function(){
   if(!confirm('¿Borrar TODOS los ' + total + ' informes? Esta acción no se puede deshacer.')) return;
   Promise.all([
     set(ref(db,'contenedor_informes'), null),
-    set(ref(db,'contenedor_fotos'), null),
-    eliminarTodasFotosStorage()
+    set(ref(db,'contenedor_fotos'), null)
   ]).then(function(){
     toast('Todos los informes eliminados');
   }).catch(function(err){ toast('Error: '+err.message); });
@@ -1190,7 +1117,6 @@ window.eliminarTodo = function(){
 
 // ─── INIT ─────────────────────────────────────────────────
 renderNuevo();
-migrarFotosBase64aStorage();
 </script>
 </body>
 </html>
